@@ -1,12 +1,21 @@
 {
   "manifest_version": 3,
   "name": "NT Head-to-Head",
-  "version": "1.0.0",
-  "description": "Compare any two Nitro Type racers or teams, side by side, with recent-form context.",
+  "version": "2.0.1",
+  "description": "Compare any two Nitro Type racers or teams, side by side, right from a tab inside Nitro Type itself.",
   "action": {
-    "default_popup": "popup/popup.html",
-    "default_title": "NT Head-to-Head"
+    "default_title": "NT Head-to-Head (open on nitrotype.com)"
   },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.nitrotype.com/*"],
+      "js": ["lib/nt.js", "content/inject.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "host_permissions": [
     "https://www.nitrotype.com/*"
   ],
