@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>NT Head-to-Head</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="head">
+      <span class="logo">⚡ Head-to-Head</span>
+      <div class="mode-switch" role="tablist">
+        <button class="mode-btn active" data-mode="team" type="button">Teams</button>
+        <button class="mode-btn" data-mode="racer" type="button">Racers</button>
+      </div>
+    </header>
+
+    <form id="compare-form" class="inputs">
+      <label class="field">
+        <span class="field-label" id="label-a">Team A tag</span>
+        <input type="text" id="input-a" autocomplete="off" spellcheck="false" />
+      </label>
+      <span class="vs">vs</span>
+      <label class="field">
+        <span class="field-label" id="label-b">Team B tag</span>
+        <input type="text" id="input-b" autocomplete="off" spellcheck="false" />
+      </label>
+      <button type="submit" class="compare-btn">Compare</button>
+    </form>
+
+    <div id="status" class="status" hidden></div>
+    <div id="result" class="result" hidden></div>
+
+    <script src="../lib/nt.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
