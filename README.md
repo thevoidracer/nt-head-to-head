@@ -43,10 +43,9 @@ same card-based "Browse teams" layout as TypeTrack's own site-wide team
 filterer, instead of having to shuffle through Nitro Type's own team
 browser one page at a time. Each card shows the team's tag and name
 (colored to match its real in-game tag color), captain, member count,
-formed date, and race/speed requirement, plus a **View roster** link
-out to its real nitrotype.com team page and when you last looked it
-up. Type part of a tag or name to filter; click a card to send that
-team straight into Compare as Team A.
+formed date, race/speed requirement, and when you last looked it up.
+Type part of a tag or name to filter; click a card to open that team's
+real nitrotype.com team page in a new tab.
 
 Nitro Type doesn't publish a full list of every team (its own in-game
 search needs a login token this extension deliberately doesn't touch),
@@ -58,6 +57,11 @@ gets added to (or refreshed in) your own local list automatically.
 The toolbar icon (no popup) also toggles the panel open/closed on the
 active nitrotype.com tab, as a backup if the nav tab is ever hard to
 find.
+
+The whole panel is set in [Manrope](https://github.com/google/fonts/tree/main/ofl/manrope),
+the same clean, squared-but-flowing geometric sans [StarTrack](https://www.ntstartrack.org/)
+itself uses — self-hosted in the extension so it always loads regardless
+of nitrotype.com's own content-security policy.
 
 ## Install (not on the Chrome Web Store — load it manually)
 

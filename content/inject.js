@@ -171,6 +171,19 @@
   // Panel (Shadow DOM — fully isolated styling in both directions)
   // ---------------------------------------------------------------------
 
+  // Manrope — the same clean, squared-but-flowing geometric sans StarTrack
+  // itself uses. Self-hosted in the extension (one variable-weight file,
+  // rather than pulled from Google Fonts at runtime) so it always loads
+  // regardless of nitrotype.com's own CSP.
+  const FONT_FACE_CSS = `
+    @font-face {
+      font-family: "Manrope";
+      font-weight: 200 800;
+      font-style: normal;
+      src: url("${chrome.runtime.getURL("fonts/Manrope-Variable.ttf")}") format("truetype-variations");
+    }
+  `;
+
   function buildPanel() {
     const host = document.createElement("div");
     host.id = "ntcmp-host";
@@ -179,7 +192,7 @@
     const root = host.attachShadow({ mode: "open" });
 
     root.innerHTML = `
-      <style>${PANEL_CSS}</style>
+      <style>${FONT_FACE_CSS}${PANEL_CSS}</style>
       <button id="fab" class="fab" aria-label="Open TypeTrack" title="TypeTrack — compare &amp; browse teams">⚡</button>
       <div class="backdrop" id="backdrop"></div>
       <div class="panel" id="panel">
@@ -326,8 +339,9 @@
 
     // Full "Teams" tab — every team this install knows about (seeded +
     // auto-grown, see TeamDirectory above), searchable, the same spirit as
-    // TypeTrack's own site-wide team filterer. Clicking one jumps back to
-    // Compare with it pre-filled as Team A, ready to pick an opponent.
+    // TypeTrack's own site-wide team filterer. Clicking a card opens that
+    // team's real nitrotype.com page (to compare it, type its tag into
+    // either Compare field — the autocomplete remembers every team here).
     function fmtFormed(ms) {
       if (!ms) return "—";
       return new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
@@ -349,40 +363,21 @@
             .map((t) => {
               const color = t.color ? `#${t.color}` : "var(--nt-gold)";
               return `
-                <div class="team-card" data-tag="${escapeHtml(t.tag)}" style="--team-color:${color}" tabindex="0" role="button">
+                <a class="team-card" href="https://www.nitrotype.com/team/${encodeURIComponent(t.tag)}" target="_blank" rel="noopener" data-tag="${escapeHtml(t.tag)}" style="--team-color:${color}">
                   <div class="team-card-head"><span class="team-card-tag" style="color:${color}">[${escapeHtml(t.tag)}]</span> <span class="team-card-name">${escapeHtml(t.name)}</span></div>
                   <div class="team-card-row">Captain: <b>${escapeHtml(t.captain || "—")}</b></div>
                   <div class="team-card-row">Members: <b>${t.members ?? "—"}</b> · Formed: <b>${fmtFormed(t.formed)}</b></div>
                   <div class="team-card-row">Min: <b>${t.minRaces ?? 0} races / ${t.minSpeed ?? 0} wpm</b></div>
                   <div class="team-card-foot">
-                    <a class="team-card-link" href="https://www.nitrotype.com/team/${encodeURIComponent(t.tag)}" target="_blank" rel="noopener">View roster</a>
+                    <span class="team-card-link">View on Nitro Type</span>
                     ${t.syncedAt ? `<span class="team-card-synced">Synced ${fmtSynced(t.syncedAt)}</span>` : ""}
                   </div>
-                </div>`;
+                </a>`;
             })
             .join("")
         : `<div class="teams-empty">No teams match yet — keep comparing or browsing teams on nitrotype.com and this list grows.</div>`;
     }
     els.teamsSearch.addEventListener("input", renderTeamsList);
-    els.teamsList.addEventListener("click", (e) => {
-      if (e.target.closest(".team-card-link")) return; // let "View roster" open nitrotype.com normally
-      const card = e.target.closest(".team-card");
-      if (!card) return;
-      els.inputA.value = card.dataset.tag;
-      setMode("team");
-      setView("compare");
-      els.inputB.focus();
-    });
-    els.teamsList.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      const card = e.target.closest(".team-card");
-      if (!card) return;
-      e.preventDefault();
-      els.inputA.value = card.dataset.tag;
-      setMode("team");
-      setView("compare");
-      els.inputB.focus();
-    });
     TeamDirectory.subscribe(() => {
       if (!els.viewTeams.hidden) renderTeamsList();
     });
@@ -654,7 +649,7 @@
       --nt-red: #e2231a;
       --nt-red-dim: #3a1414;
       --nt-gold: #f0c75e;
-      --nt-font: "Arial Narrow", "Segoe UI", Roboto, system-ui, sans-serif;
+      --nt-font: "Manrope", "Segoe UI", Roboto, system-ui, sans-serif;
     }
 
     .fab {
@@ -754,7 +749,7 @@
     .team-card {
       text-align: left; cursor: pointer; background: var(--nt-panel); border: 1px solid var(--nt-line);
       border-left: 4px solid var(--team-color, var(--nt-gold)); border-radius: 8px; padding: 16px 16px 12px;
-      display: flex; flex-direction: column; gap: 5px;
+      display: flex; flex-direction: column; gap: 5px; text-decoration: none; color: inherit;
     }
     .team-card:hover, .team-card:focus-visible { background: var(--nt-panel-raised); border-color: var(--nt-gold); outline: none; }
     .team-card-head { font-size: 15px; margin-bottom: 2px; }
@@ -763,8 +758,7 @@
     .team-card-row { font-size: 12.5px; color: var(--nt-dim); }
     .team-card-row b { color: var(--nt-text); font-weight: 700; }
     .team-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--nt-line); }
-    .team-card-link { color: var(--nt-gold); font-size: 12px; font-weight: 700; text-decoration: none; }
-    .team-card-link:hover { text-decoration: underline; }
+    .team-card-link { color: var(--nt-gold); font-size: 12px; font-weight: 700; }
     .team-card-synced { font-size: 10.5px; color: var(--nt-dim); opacity: 0.75; white-space: nowrap; }
     .teams-empty { grid-column: 1 / -1; font-size: 13px; color: var(--nt-dim); padding: 20px 4px; line-height: 1.6; }
 
