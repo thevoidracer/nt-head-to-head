@@ -102,7 +102,9 @@ once — it turns into ★). Roughly every 30 minutes, even with no
 nitrotype.com tab open, the extension quietly re-checks every watched
 team and fires a desktop notification if its captain changes, its
 race/speed requirement changes, or its member count swings by 5 or
-more.
+more. Your own team (see auto-detection above) gets starred for you
+automatically the first time it's detected — unstar it any time and it
+stays unstarred.
 
 ## Install (not on the Chrome Web Store — load it manually)
 

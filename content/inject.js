@@ -320,7 +320,14 @@
     if (!myTeam) {
       const teamLink = document.querySelector('nav.nav a[href^="/team/"]');
       const tag = teamLink && decodeURIComponent(teamLink.getAttribute("href").replace(/^\/team\//, ""));
-      if (tag) Settings.setMyTeam(tag);
+      if (tag) {
+        await Settings.setMyTeam(tag);
+        // Auto-watch it too, the moment it's first detected — your own
+        // team is the one you'd most want a change alert on, and this
+        // only ever fires on that first-ever detection (myTeam was empty
+        // a moment ago), so unwatching it later yourself always sticks.
+        if (!WatchList.has(tag)) WatchList.toggle(tag);
+      }
     }
   }
 
