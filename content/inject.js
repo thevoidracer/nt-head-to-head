@@ -13,8 +13,98 @@
   let panelApi = null; // set once the panel is built
 
   // ---------------------------------------------------------------------
+  // Team directory — the "known teams" the compare fields autocomplete
+  // and the Browse list draw from. Grows two ways: explicitly, every time
+  // a team is looked up in the compare form or the roster finder; and
+  // passively, every time this tab visits a team's own page on
+  // nitrotype.com. Seeded once from SEED_TEAM_TAGS (lib/seed-teams.js) so
+  // Browse isn't empty on day one — see that file for why it's a curated
+  // starter list, not a claim of completeness.
+  // ---------------------------------------------------------------------
+
+  const TeamDirectory = (() => {
+    let teams = [];
+    const subscribers = [];
+
+    function storageGet(key) {
+      return new Promise((resolve) => chrome.storage.local.get([key], (r) => resolve(r[key])));
+    }
+    function storageSet(obj) {
+      return new Promise((resolve) => chrome.storage.local.set(obj, resolve));
+    }
+
+    async function load() {
+      teams = (await storageGet("ntcmp:knownTeams")) || [];
+      notify();
+    }
+
+    async function remember(tag, name) {
+      const clean = (tag || "").trim().toUpperCase();
+      if (!clean) return;
+      const idx = teams.findIndex((t) => t.tag === clean);
+      if (idx >= 0) teams[idx] = { tag: clean, name: name || teams[idx].name };
+      else teams.unshift({ tag: clean, name: name || clean });
+      teams = teams.slice(0, 400);
+      await storageSet({ "ntcmp:knownTeams": teams });
+      notify();
+    }
+
+    function list() {
+      return teams.slice();
+    }
+
+    function subscribe(fn) {
+      subscribers.push(fn);
+    }
+
+    function notify() {
+      subscribers.forEach((fn) => fn(teams));
+    }
+
+    async function seedOnce() {
+      const alreadySeeded = await storageGet("ntcmp:seeded");
+      if (alreadySeeded) return;
+      await storageSet({ "ntcmp:seeded": true });
+      const queue = (typeof SEED_TEAM_TAGS !== "undefined" ? SEED_TEAM_TAGS : []).slice();
+      const worker = async () => {
+        while (queue.length) {
+          const tag = queue.shift();
+          try {
+            const team = await NT.fetchTeam(tag);
+            await remember(team.tag, team.name);
+          } catch (e) {
+            // Tag may be renamed or disbanded since the seed list was
+            // captured — just skip it, this isn't fatal to anything.
+          }
+        }
+      };
+      // A handful of workers at a time — fast enough to fill in over a
+      // few seconds, gentle enough not to look like hammering NT's API.
+      await Promise.all(Array.from({ length: 4 }, worker));
+    }
+
+    async function captureFromPath(pathname) {
+      const m = pathname.match(/^\/team\/([^/?#]+)/i);
+      if (!m) return;
+      const tag = decodeURIComponent(m[1]).toUpperCase();
+      try {
+        const team = await NT.fetchTeam(tag);
+        await remember(team.tag, team.name);
+      } catch (e) {
+        // Not fatal — just don't add it.
+      }
+    }
+
+    load();
+    return { remember, list, subscribe, seedOnce, captureFromPath };
+  })();
+
+  TeamDirectory.seedOnce();
+
+  // ---------------------------------------------------------------------
   // Nav tab injection (clones a real nav <li> so it inherits NT's own
-  // styling exactly, rather than us guessing their class names).
+  // styling exactly, rather than us guessing their class names) — and,
+  // piggybacking on the same poll, passive team-page capture above.
   // ---------------------------------------------------------------------
 
   function ensureNavTab() {
@@ -41,10 +131,19 @@
     li.parentNode.insertBefore(clone, li.nextSibling);
   }
 
-  const navObserver = new MutationObserver(() => ensureNavTab());
+  let lastCapturedPath = null;
+  function onPossibleNavigation() {
+    ensureNavTab();
+    if (location.pathname !== lastCapturedPath) {
+      lastCapturedPath = location.pathname;
+      TeamDirectory.captureFromPath(location.pathname);
+    }
+  }
+
+  const navObserver = new MutationObserver(() => onPossibleNavigation());
   navObserver.observe(document.documentElement, { childList: true, subtree: true });
-  ensureNavTab();
-  setInterval(ensureNavTab, 2000); // cheap safety net for SPA re-renders the observer might miss
+  onPossibleNavigation();
+  setInterval(onPossibleNavigation, 2000); // cheap safety net for SPA re-renders the observer might miss
 
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.type === "ntcmp:toggle" && panelApi) panelApi.toggle();
@@ -83,12 +182,14 @@
               <span class="field-label" id="label-a">Team A tag</span>
               <input type="text" id="input-a" list="known-teams" autocomplete="off" spellcheck="false" />
               <button type="button" class="find-link" id="find-a" hidden>Find by name</button>
+              <button type="button" class="find-link" id="browse-a" hidden>Browse teams</button>
             </label>
             <span class="vs">VS</span>
             <label class="field">
               <span class="field-label" id="label-b">Team B tag</span>
               <input type="text" id="input-b" list="known-teams" autocomplete="off" spellcheck="false" />
               <button type="button" class="find-link" id="find-b" hidden>Find by name</button>
+              <button type="button" class="find-link" id="browse-b" hidden>Browse teams</button>
             </label>
             <button type="submit" class="compare-btn">Compare</button>
           </form>
@@ -111,6 +212,15 @@
             <div class="finder-status"></div>
           </div>
 
+          <div id="teambrowse-a" class="teambrowse" hidden>
+            <input type="text" class="teambrowse-search" placeholder="Search by tag or name…" autocomplete="off" spellcheck="false" />
+            <div class="teambrowse-list"></div>
+          </div>
+          <div id="teambrowse-b" class="teambrowse" hidden>
+            <input type="text" class="teambrowse-search" placeholder="Search by tag or name…" autocomplete="off" spellcheck="false" />
+            <div class="teambrowse-list"></div>
+          </div>
+
           <div id="status" class="status" hidden></div>
           <div id="result" class="result" hidden></div>
         </div>
@@ -120,7 +230,7 @@
   }
 
   function wirePanel(root) {
-    const state = { mode: "team", knownTeams: [], open: false };
+    const state = { mode: "team", open: false };
 
     const els = {
       fab: root.getElementById("fab"),
@@ -136,6 +246,10 @@
       findB: root.getElementById("find-b"),
       finderA: root.getElementById("finder-a"),
       finderB: root.getElementById("finder-b"),
+      browseA: root.getElementById("browse-a"),
+      browseB: root.getElementById("browse-b"),
+      teamBrowseA: root.getElementById("teambrowse-a"),
+      teamBrowseB: root.getElementById("teambrowse-b"),
       knownTeamsList: root.getElementById("known-teams"),
       form: root.getElementById("compare-form"),
       btn: root.querySelector(".compare-btn"),
@@ -143,33 +257,12 @@
       result: root.getElementById("result"),
     };
 
-    function storageGet(key) {
-      return new Promise((resolve) => chrome.storage.local.get([key], (r) => resolve(r[key])));
-    }
-    function storageSet(obj) {
-      return new Promise((resolve) => chrome.storage.local.set(obj, resolve));
-    }
-
-    async function loadKnownTeams() {
-      state.knownTeams = (await storageGet("ntcmp:knownTeams")) || [];
-      renderKnownTeamsDatalist();
-    }
-
-    async function rememberTeam(tag, name) {
-      const clean = tag.trim().toUpperCase();
-      const idx = state.knownTeams.findIndex((t) => t.tag === clean);
-      if (idx >= 0) state.knownTeams[idx] = { tag: clean, name: name || state.knownTeams[idx].name };
-      else state.knownTeams.unshift({ tag: clean, name: name || clean });
-      state.knownTeams = state.knownTeams.slice(0, 60);
-      await storageSet({ "ntcmp:knownTeams": state.knownTeams });
-      renderKnownTeamsDatalist();
-    }
-
-    function renderKnownTeamsDatalist() {
-      els.knownTeamsList.innerHTML = state.knownTeams
+    function renderKnownTeamsDatalist(teams) {
+      els.knownTeamsList.innerHTML = teams
         .map((t) => `<option value="${t.tag}">${t.tag} — ${escapeHtml(t.name)}</option>`)
         .join("");
     }
+    TeamDirectory.subscribe(renderKnownTeamsDatalist);
 
     function escapeHtml(s) {
       return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -185,9 +278,14 @@
       els.inputB.placeholder = isTeam ? "e.g. KU" : "e.g. speedking";
       els.findA.hidden = isTeam;
       els.findB.hidden = isTeam;
+      els.browseA.hidden = !isTeam;
+      els.browseB.hidden = !isTeam;
       if (isTeam) {
         els.finderA.hidden = true;
         els.finderB.hidden = true;
+      } else {
+        els.teamBrowseA.hidden = true;
+        els.teamBrowseB.hidden = true;
       }
     }
     els.modeBtns.forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
@@ -215,7 +313,7 @@
         loadBtn.disabled = true;
         try {
           const team = await NT.fetchTeam(tag);
-          await rememberTeam(team.tag, team.name);
+          await TeamDirectory.remember(team.tag, team.name);
           const members = (team.members || []).slice().sort((m1, m2) => m1.displayName.localeCompare(m2.displayName));
           rosterSelect.innerHTML = members
             .map((m) => `<option value="${m.username}">${escapeHtml(m.displayName)} — ${escapeHtml(m.username)}</option>`)
@@ -246,6 +344,45 @@
     }
     wireFinder("a");
     wireFinder("b");
+
+    function wireBrowse(side) {
+      const browseBtn = side === "a" ? els.browseA : els.browseB;
+      const panel = side === "a" ? els.teamBrowseA : els.teamBrowseB;
+      const mainInput = side === "a" ? els.inputA : els.inputB;
+      const searchInput = panel.querySelector(".teambrowse-search");
+      const listEl = panel.querySelector(".teambrowse-list");
+
+      function renderList() {
+        const q = searchInput.value.trim().toLowerCase();
+        const items = TeamDirectory.list()
+          .filter((t) => !q || t.tag.toLowerCase().includes(q) || t.name.toLowerCase().includes(q))
+          .sort((t1, t2) => t1.tag.localeCompare(t2.tag))
+          .slice(0, 200);
+        listEl.innerHTML = items.length
+          ? items.map((t) => `<button type="button" class="teambrowse-item" data-tag="${escapeHtml(t.tag)}">[${escapeHtml(t.tag)}] ${escapeHtml(t.name)}</button>`).join("")
+          : `<div class="teambrowse-empty">No teams match yet — keep comparing or browsing teams on nitrotype.com and this list grows.</div>`;
+      }
+
+      browseBtn.addEventListener("click", () => {
+        panel.hidden = !panel.hidden;
+        if (!panel.hidden) {
+          renderList();
+          searchInput.focus();
+        }
+      });
+      searchInput.addEventListener("input", renderList);
+      listEl.addEventListener("click", (e) => {
+        const btn = e.target.closest(".teambrowse-item");
+        if (!btn) return;
+        mainInput.value = btn.dataset.tag;
+        panel.hidden = true;
+      });
+      TeamDirectory.subscribe(() => {
+        if (!panel.hidden) renderList();
+      });
+    }
+    wireBrowse("a");
+    wireBrowse("b");
 
     // Bar + duel-score presentation borrowed from StarTrack's "Showdown"
     // comparator (the community leaderboard site startrack.org): every row
@@ -395,8 +532,8 @@
         els.result.innerHTML = state.mode === "team" ? renderTeams(dataA, dataB) : renderRacers(dataA, dataB);
         els.result.hidden = false;
         if (state.mode === "team") {
-          rememberTeam(dataA.tag, dataA.name);
-          rememberTeam(dataB.tag, dataB.name);
+          TeamDirectory.remember(dataA.tag, dataA.name);
+          TeamDirectory.remember(dataB.tag, dataB.name);
         }
       } catch (err) {
         setStatus(err.message || "Something went wrong.", true);
@@ -437,7 +574,6 @@
       if (e.key === "Escape" && state.open) close();
     });
 
-    loadKnownTeams();
     setMode("team");
 
     return { open, close, toggle };
@@ -543,6 +679,13 @@
     .finder-roster { background: var(--nt-bg); border: 1px solid var(--nt-line); color: var(--nt-text); border-radius: 6px; padding: 8px 10px; font-size: 14px; font-family: inherit; width: 100%; }
     .finder-status { font-size: 12px; color: var(--nt-dim); }
     .finder-status.error { color: #ff6b63; }
+
+    .teambrowse { margin: 12px 0 0; padding: 14px; background: var(--nt-panel); border: 1px solid var(--nt-line); border-radius: 8px; display: flex; flex-direction: column; gap: 10px; }
+    .teambrowse-search { background: var(--nt-bg); border: 1px solid var(--nt-line); color: var(--nt-text); border-radius: 6px; padding: 8px 10px; font-size: 14px; font-family: inherit; }
+    .teambrowse-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+    .teambrowse-item { text-align: left; background: var(--nt-bg); border: 1px solid transparent; color: var(--nt-text); border-radius: 6px; padding: 8px 10px; font-size: 13px; font-family: inherit; cursor: pointer; }
+    .teambrowse-item:hover { border-color: var(--nt-line); background: var(--nt-panel-raised); }
+    .teambrowse-empty { font-size: 12px; color: var(--nt-dim); padding: 6px 2px; line-height: 1.5; }
 
     .status { padding: 16px 0; color: var(--nt-dim); font-size: 15px; }
     .status.error { color: #ff6b63; }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NT Head-to-Head",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Compare any two Nitro Type racers or teams, side by side, right from a tab inside Nitro Type itself.",
   "permissions": ["storage"],
   "action": {
@@ -13,7 +13,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.nitrotype.com/*"],
-      "js": ["lib/nt.js", "content/inject.js"],
+      "js": ["lib/nt.js", "lib/seed-teams.js", "content/inject.js"],
       "run_at": "document_idle"
     }
   ],

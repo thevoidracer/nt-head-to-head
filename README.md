@@ -30,6 +30,15 @@ comparison view, styled to match Nitro Type's own navy/red/gold look.
 - Don't know someone's exact username? Click **Find by name** under
   either racer field, load a team's roster by tag, and pick them by their
   display name — their real username fills in automatically.
+- Don't know a team's exact tag either? Click **Browse teams** under
+  either team field to open a searchable list — type part of a tag or
+  name to filter, click a result to fill it in. Nitro Type doesn't
+  publish a full list of every team (its own in-game search needs a
+  login token this extension deliberately doesn't touch), so the list
+  starts from a curated set of active/notable teams and grows
+  permanently from there: every team you compare, look up, or simply
+  visit the page of on nitrotype.com gets added to your own local list
+  automatically.
 - Open the panel while on a team or racer page and side A auto-fills with
   whoever you're looking at.
 - The toolbar icon (no popup) also toggles the panel open/closed on the
