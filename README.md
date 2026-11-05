@@ -72,8 +72,11 @@ of nitrotype.com's own content-security policy.
 
 ### On-page comparisons, without opening the panel at all
 
-Click the **⚙** gear in the panel header once and set "my team" tag and
-"my racer" username. From then on:
+Open the **⚙** gear in the panel header once — if you're logged into
+Nitro Type, "my team" and "my racer" auto-fill themselves straight off
+NT's own page (your account dropdown's profile link, your nav's team
+link), no typing needed. Change either one any time; your own edit
+always sticks. From then on:
 
 - Visit any *other* team's real nitrotype.com page and a small badge
   floats in showing how it stacks up against yours — member count, min
@@ -122,9 +125,12 @@ exception is the shared team list: basic public team info (tag, name,
 color, captain, member count, requirements) is synced to and from a
 small open database so every install's Teams tab benefits from what every
 other install has found — nothing tied to your own account or identity is
-ever sent. The "my team" / "my racer" settings and your watch list never
-leave your own browser — they're only ever used to build ordinary NT API
-calls from your machine. Nothing else is collected or stored beyond what
+ever sent. The "my team" / "my racer" settings (whether auto-detected or
+typed in) and your watch list never leave your own browser — they're
+only ever used to build ordinary NT API calls from your machine, and
+auto-detection only ever reads two ordinary links already on NT's own
+page, never your cookies, login token, or any other account data.
+Nothing else is collected or stored beyond what
 Chrome's own extension storage does automatically (the list of teams
 you've looked up, so the Teams tab and autocomplete can suggest them
 next time).

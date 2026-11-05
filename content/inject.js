@@ -264,11 +264,16 @@
     let myTeam = "";
     let myRacer = "";
     const subscribers = [];
+    let resolveReady;
+    const ready = new Promise((resolve) => {
+      resolveReady = resolve;
+    });
 
     async function load() {
       myTeam = (await storageGet("ntcmp:myTeam")) || "";
       myRacer = (await storageGet("ntcmp:myRacer")) || "";
       notify();
+      resolveReady();
     }
     function notify() {
       subscribers.forEach((fn) => fn({ myTeam, myRacer }));
@@ -291,8 +296,33 @@
     }
 
     load();
-    return { get, subscribe, setMyTeam, setMyRacer };
+    // Resolves once the stored values (if any) have actually been read,
+    // so auto-detection (below) never races the storage read and clobbers
+    // a value the user already set.
+    return { get, subscribe, setMyTeam, setMyRacer, ready };
   })();
+
+  // Auto-detect "my team" / "my racer" straight off Nitro Type's own
+  // rendered page while logged in — the account-menu's own link to your
+  // profile, and the main nav's own link to your team — rather than
+  // asking you to type them in. Never touches cookies, tokens, or any
+  // session/auth internals; just reads two ordinary <a href> values NT
+  // already put on the page for you. Only fills in a value that's still
+  // empty, so it never overwrites something you set yourself.
+  async function detectIdentity() {
+    await Settings.ready;
+    const { myTeam, myRacer } = Settings.get();
+    if (!myRacer) {
+      const racerLink = document.querySelector('.dropdown--account a[href^="/racer/"]');
+      const username = racerLink && decodeURIComponent(racerLink.getAttribute("href").replace(/^\/racer\//, ""));
+      if (username) Settings.setMyRacer(username);
+    }
+    if (!myTeam) {
+      const teamLink = document.querySelector('nav.nav a[href^="/team/"]');
+      const tag = teamLink && decodeURIComponent(teamLink.getAttribute("href").replace(/^\/team\//, ""));
+      if (tag) Settings.setMyTeam(tag);
+    }
+  }
 
   // ---------------------------------------------------------------------
   // Watch list — a short, explicit "notify me" list the user builds from
@@ -608,6 +638,7 @@
   let lastCapturedPath = null;
   function onPossibleNavigation() {
     ensureNavTab();
+    detectIdentity();
     if (location.pathname !== lastCapturedPath) {
       lastCapturedPath = location.pathname;
       const teamMatch = location.pathname.match(/^\/team\/([^/?#]+)/i);
@@ -667,7 +698,7 @@
           </div>
           <div class="settings-pop" id="settings-pop" hidden>
             <div class="settings-title">Your identity</div>
-            <div class="settings-note">Used only to compare whatever team or racer page you're on against your own, right there on the page.</div>
+            <div class="settings-note">Auto-filled from your Nitro Type account when you're logged in — change either one any time, and it sticks.</div>
             <label class="settings-field">
               <span>My team tag</span>
               <input type="text" id="settings-my-team" placeholder="e.g. IMT" autocomplete="off" spellcheck="false" />
