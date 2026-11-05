@@ -88,6 +88,72 @@ body {
   outline-offset: -1px;
 }
 
+.find-link {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 0 0;
+  cursor: pointer;
+}
+.find-link:hover { text-decoration: underline; }
+
+.finder {
+  margin: 0 14px 10px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.finder-row {
+  display: flex;
+  gap: 6px;
+}
+
+.finder-team-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.finder-load-btn {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.finder-load-btn:hover { filter: brightness(1.15); }
+
+.finder-roster {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.finder-status {
+  font-size: 11px;
+  color: var(--dim);
+}
+.finder-status.error { color: #f87171; }
+
 .vs {
   color: var(--dim);
   font-size: 11px;

@@ -17,15 +17,35 @@
     <form id="compare-form" class="inputs">
       <label class="field">
         <span class="field-label" id="label-a">Team A tag</span>
-        <input type="text" id="input-a" autocomplete="off" spellcheck="false" />
+        <input type="text" id="input-a" list="known-teams" autocomplete="off" spellcheck="false" />
+        <button type="button" class="find-link" id="find-a" hidden>Find by name</button>
       </label>
       <span class="vs">vs</span>
       <label class="field">
         <span class="field-label" id="label-b">Team B tag</span>
-        <input type="text" id="input-b" autocomplete="off" spellcheck="false" />
+        <input type="text" id="input-b" list="known-teams" autocomplete="off" spellcheck="false" />
+        <button type="button" class="find-link" id="find-b" hidden>Find by name</button>
       </label>
       <button type="submit" class="compare-btn">Compare</button>
     </form>
+    <datalist id="known-teams"></datalist>
+
+    <div id="finder-a" class="finder" hidden>
+      <div class="finder-row">
+        <input type="text" class="finder-team-input" list="known-teams" placeholder="Team tag, e.g. IMT" autocomplete="off" spellcheck="false" />
+        <button type="button" class="finder-load-btn">Load roster</button>
+      </div>
+      <select class="finder-roster" hidden></select>
+      <div class="finder-status"></div>
+    </div>
+    <div id="finder-b" class="finder" hidden>
+      <div class="finder-row">
+        <input type="text" class="finder-team-input" list="known-teams" placeholder="Team tag, e.g. IMT" autocomplete="off" spellcheck="false" />
+        <button type="button" class="finder-load-btn">Load roster</button>
+      </div>
+      <select class="finder-roster" hidden></select>
+      <div class="finder-status"></div>
+    </div>
 
     <div id="status" class="status" hidden></div>
     <div id="result" class="result" hidden></div>
