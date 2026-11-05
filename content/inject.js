@@ -193,7 +193,7 @@
 
     root.innerHTML = `
       <style>${FONT_FACE_CSS}${PANEL_CSS}</style>
-      <button id="fab" class="fab" aria-label="Open TypeTrack" title="TypeTrack — compare &amp; browse teams">⚡</button>
+      <button id="fab" class="fab" aria-label="Open TypeTrack" title="TypeTrack — compare &amp; browse teams"><span class="fab-bolt">⚡</span>TypeTrack</button>
       <div class="backdrop" id="backdrop"></div>
       <div class="panel" id="panel">
         <header class="head">
@@ -653,14 +653,17 @@
     }
 
     .fab {
-      position: fixed; right: 20px; bottom: 20px;
-      width: 52px; height: 52px; border-radius: 50%;
+      position: fixed; right: 24px; bottom: 116px;
+      display: flex; align-items: center; gap: 8px;
+      padding: 13px 20px; border-radius: 14px;
       background: var(--nt-red); color: #fff; border: 2px solid #ff6b63;
-      font-size: 22px; cursor: pointer;
+      font-family: var(--nt-font); font-size: 15px; font-weight: 700;
+      cursor: pointer; white-space: nowrap;
       box-shadow: 0 4px 16px rgba(0,0,0,0.5);
       z-index: 2147482999;
     }
     .fab:hover { filter: brightness(1.1); transform: scale(1.05); }
+    .fab-bolt { font-size: 18px; }
 
     .backdrop {
       position: fixed; inset: 0; background: rgba(4,9,18,0.7);
