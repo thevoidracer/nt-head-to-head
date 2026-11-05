@@ -246,7 +246,11 @@
     return { remember, mergeRemote, list, unseenCount, markSeen, subscribe, seedOnce, captureFromPath };
   })();
 
-  TeamDirectory.seedOnce();
+  // Give the page (and anything the user does right away, like opening
+  // the panel to run a Compare) a few quiet seconds before this one-time
+  // background burst starts, rather than competing with it for NT's API
+  // right out of the gate.
+  setTimeout(() => TeamDirectory.seedOnce(), 4000);
   SharedTeams.pullAll().then((remote) => TeamDirectory.mergeRemote(remote));
 
   // ---------------------------------------------------------------------
