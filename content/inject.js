@@ -13,6 +13,74 @@
   let panelApi = null; // set once the panel is built
 
   // ---------------------------------------------------------------------
+  // Shared team list — a small, separate database (not the TypeTrack
+  // website's own) that every install of this extension reads from and
+  // writes to anonymously. Any team any TypeTrack user compares, looks
+  // up, or visits the page of gets pushed here, so it shows up in every
+  // other install's Teams tab too — not just the one person who found
+  // it. Backed by a public, no-login Supabase table, since Nitro Type
+  // itself has no "every team" endpoint to seed from.
+  // ---------------------------------------------------------------------
+
+  const SharedTeams = (() => {
+    const ENDPOINT = "https://povaenzmktegkgxfbcbi.supabase.co/rest/v1/shared_teams";
+    const KEY = "sb_publishable_xF29hhiE7UvqL0G4oU8-_Q__qL0aHt2";
+    const headers = { apikey: KEY, "Content-Type": "application/json" };
+
+    function toRemote(entry) {
+      return {
+        tag: entry.tag,
+        name: entry.name,
+        color: entry.color,
+        captain: entry.captain,
+        members: entry.members,
+        formed: entry.formed,
+        min_races: entry.minRaces,
+        min_speed: entry.minSpeed,
+        synced_at: entry.syncedAt,
+        updated_at: new Date().toISOString(),
+      };
+    }
+
+    function fromRemote(row) {
+      return {
+        tag: row.tag,
+        name: row.name,
+        color: row.color,
+        captain: row.captain,
+        members: row.members,
+        formed: row.formed,
+        minRaces: row.min_races,
+        minSpeed: row.min_speed,
+        syncedAt: row.synced_at,
+      };
+    }
+
+    // Fire-and-forget: never blocks or throws into the caller. Every
+    // install is an anonymous writer, so a flaky connection just means
+    // this one team doesn't sync this particular time — not fatal.
+    function push(entry) {
+      fetch(ENDPOINT, {
+        method: "POST",
+        headers: { ...headers, Prefer: "resolution=merge-duplicates" },
+        body: JSON.stringify(toRemote(entry)),
+      }).catch(() => {});
+    }
+
+    async function pullAll() {
+      try {
+        const res = await fetch(`${ENDPOINT}?select=*`, { headers });
+        if (!res.ok) return [];
+        return (await res.json()).map(fromRemote);
+      } catch (e) {
+        return [];
+      }
+    }
+
+    return { push, pullAll };
+  })();
+
+  // ---------------------------------------------------------------------
   // Team directory — the "known teams" the compare fields autocomplete
   // and the Browse list draw from. Grows two ways: explicitly, every time
   // a team is looked up in the compare form or the roster finder; and
@@ -65,6 +133,40 @@
       teams = teams.slice(0, 400);
       await storageSet({ "ntcmp:knownTeams": teams });
       notify();
+      SharedTeams.push(entry);
+    }
+
+    // Folds in rows pulled from the shared list (see SharedTeams above).
+    // Only overwrites a team we already know about if the shared copy is
+    // newer — never stomps a fresher local lookup with a stale one.
+    async function mergeRemote(remoteTeams) {
+      let changed = false;
+      for (const r of remoteTeams) {
+        const clean = (r.tag || "").trim().toUpperCase();
+        if (!clean) continue;
+        const idx = teams.findIndex((t) => t.tag === clean);
+        const existing = idx >= 0 ? teams[idx] : null;
+        if (existing && (existing.syncedAt || 0) >= (r.syncedAt || 0)) continue;
+        const entry = {
+          tag: clean,
+          name: r.name || existing?.name || clean,
+          color: r.color || existing?.color || null,
+          captain: r.captain || existing?.captain || null,
+          members: r.members ?? existing?.members ?? null,
+          formed: r.formed ?? existing?.formed ?? null,
+          minRaces: r.minRaces ?? existing?.minRaces ?? 0,
+          minSpeed: r.minSpeed ?? existing?.minSpeed ?? 0,
+          syncedAt: r.syncedAt ?? existing?.syncedAt ?? Date.now(),
+        };
+        if (idx >= 0) teams[idx] = entry;
+        else teams.unshift(entry);
+        changed = true;
+      }
+      if (changed) {
+        teams = teams.slice(0, 400);
+        await storageSet({ "ntcmp:knownTeams": teams });
+        notify();
+      }
     }
 
     function list() {
@@ -114,10 +216,11 @@
     }
 
     load();
-    return { remember, list, subscribe, seedOnce, captureFromPath };
+    return { remember, mergeRemote, list, subscribe, seedOnce, captureFromPath };
   })();
 
   TeamDirectory.seedOnce();
+  SharedTeams.pullAll().then((remote) => TeamDirectory.mergeRemote(remote));
 
   // ---------------------------------------------------------------------
   // Nav tab injection (clones a real nav <li> so it inherits NT's own

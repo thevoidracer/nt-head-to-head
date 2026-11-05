@@ -52,7 +52,11 @@ search needs a login token this extension deliberately doesn't touch),
 so the grid starts from a curated set of active/notable teams and
 grows permanently from there, with fresh details each time: every team
 you compare, look up, or simply visit the page of on nitrotype.com
-gets added to (or refreshed in) your own local list automatically.
+gets added to (or refreshed in) your own local list automatically —
+**and gets shared with every other TypeTrack install**, through a
+small, open team database the extension syncs to in the background.
+Find a team once, anywhere, and it shows up in everyone else's Teams
+tab too.
 
 The toolbar icon (no popup) also toggles the panel open/closed on the
 active nitrotype.com tab, as a backup if the nav tab is ever hard to
@@ -79,8 +83,11 @@ reload icon on the extension's card in `chrome://extensions`.
 
 ## Privacy
 
-Everything runs locally in your own browser. The extension only talks to
-`nitrotype.com` — nothing is sent anywhere else, and nothing is collected
-or stored beyond what Chrome's own extension storage does automatically
-(just the list of teams you've looked up, so the Teams tab and
-autocomplete can suggest them next time).
+Racer and team lookups only ever talk to `nitrotype.com` itself. The one
+exception is the shared team list: basic public team info (tag, name,
+color, captain, member count, requirements) is synced to and from a
+small open database so every install's Teams tab benefits from what every
+other install has found — nothing tied to your own account or identity is
+ever sent. Nothing else is collected or stored beyond what Chrome's own
+extension storage does automatically (the list of teams you've looked
+up, so the Teams tab and autocomplete can suggest them next time).
