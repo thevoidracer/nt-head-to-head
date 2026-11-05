@@ -63,6 +63,7 @@
 
     root.innerHTML = `
       <style>${PANEL_CSS}</style>
+      <button id="fab" class="fab" aria-label="Open Head-to-Head" title="Head-to-Head comparator">⚡</button>
       <div class="backdrop" id="backdrop"></div>
       <div class="panel" id="panel">
         <header class="head">
@@ -120,6 +121,7 @@
     const state = { mode: "team", knownTeams: [], open: false };
 
     const els = {
+      fab: root.getElementById("fab"),
       backdrop: root.getElementById("backdrop"),
       panel: root.getElementById("panel"),
       closeBtn: root.getElementById("close-btn"),
@@ -382,6 +384,7 @@
       else open();
     }
 
+    els.fab.addEventListener("click", toggle);
     els.closeBtn.addEventListener("click", close);
     els.backdrop.addEventListener("click", close);
     document.addEventListener("keydown", (e) => {
@@ -397,6 +400,15 @@
   const PANEL_CSS = `
     :host, * { box-sizing: border-box; }
     [hidden] { display: none !important; }
+    .fab {
+      position: fixed; right: 20px; bottom: 20px;
+      width: 48px; height: 48px; border-radius: 50%;
+      background: #ff8a1e; color: #1a1100; border: none;
+      font-size: 20px; cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+      z-index: 2147482999;
+    }
+    .fab:hover { filter: brightness(1.08); transform: scale(1.05); }
     .backdrop {
       position: fixed; inset: 0; background: rgba(0,0,0,0.4);
       opacity: 0; pointer-events: none; transition: opacity 0.15s ease;
