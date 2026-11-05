@@ -14,10 +14,13 @@ guaranteed-visible way in too. Click either one to open a full-page
 comparison view, styled to match Nitro Type's own navy/red/gold look.
 
 - **Teams**: roster size, active %, this-week pace against the race
-  requirement, and all-time/daily speed, accuracy, and points — pulled
-  from Nitro Type's own public team API. The team fields remember every
-  team you've looked up, so typing part of a tag you've used before
-  suggests it.
+  requirement, and all-time/daily speed, accuracy, points, and
+  points-per-race — pulled from Nitro Type's own public team API. Every
+  row has a lead bar showing who's ahead at a glance, and a "stats won"
+  duel score tallies the whole comparison, both styled after the
+  community site [StarTrack](https://www.ntstartrack.org/)'s own
+  Showdown comparator. The team fields remember every team you've looked
+  up, so typing part of a tag you've used before suggests it.
 - **Racers**: level, lifetime races, avg/top speed, league tier,
   membership, longest session, and account age — pulled from the racer's
   own profile page (Nitro Type has no public JSON API for individual

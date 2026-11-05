@@ -247,7 +247,25 @@
     wireFinder("a");
     wireFinder("b");
 
-    function statRow(label, aVal, bVal, { higherIsBetter = true, suffix = "", noWin = false } = {}) {
+    // Bar + duel-score presentation borrowed from StarTrack's "Showdown"
+    // comparator (the community leaderboard site startrack.org): every row
+    // gets a two-color lead bar under the numbers, and every render tallies
+    // how many stat rows each side won into a "duel score" strip up top —
+    // same idea as their "BEEHVE 10 – 5 TCHR" summary, built from the one
+    // snapshot we already fetch rather than StarTrack's tracked history.
+    function statBar(an, bn) {
+      if (Number.isNaN(an) || Number.isNaN(bn)) return "";
+      const total = Math.abs(an) + Math.abs(bn);
+      const aPct = total ? Math.round((Math.abs(an) / total) * 100) : 50;
+      const bPct = 100 - aPct;
+      return `
+        <div class="stat-bar">
+          <div class="stat-bar-a" style="width:${aPct}%"></div>
+          <div class="stat-bar-b" style="width:${bPct}%"></div>
+        </div>`;
+    }
+
+    function statRow(label, aVal, bVal, { higherIsBetter = true, suffix = "", noWin = false, bar = true, tally = null } = {}) {
       const an = typeof aVal === "number" ? aVal : parseFloat(aVal);
       const bn = typeof bVal === "number" ? bVal : parseFloat(bVal);
       let aWin = false, bWin = false;
@@ -255,72 +273,98 @@
         if (higherIsBetter ? an > bn : an < bn) aWin = true;
         else bWin = true;
       }
+      if (tally && !noWin) {
+        if (aWin) tally.a++;
+        else if (bWin) tally.b++;
+      }
       return `
         <div class="stat-row">
           <span class="stat-val a ${aWin ? "win" : ""}">${aVal ?? "—"}${suffix}</span>
           <span class="stat-label">${label}</span>
           <span class="stat-val b ${bWin ? "win" : ""}">${bVal ?? "—"}${suffix}</span>
+          ${bar && !noWin ? statBar(an, bn) : ""}
+        </div>`;
+    }
+
+    function duelScore(tally, aName, bName) {
+      if (tally.a === 0 && tally.b === 0) return "";
+      const aLead = tally.a > tally.b;
+      const bLead = tally.b > tally.a;
+      return `
+        <div class="duel-score">
+          <span class="duel-val a ${aLead ? "lead" : ""}">${tally.a}</span>
+          <span class="duel-mid">STATS WON</span>
+          <span class="duel-val b ${bLead ? "lead" : ""}">${tally.b}</span>
         </div>`;
     }
 
     function renderTeams(a, b) {
+      const tally = { a: 0, b: 0 };
       const boardRows = (boardName, title) => {
         const ba = a.boards[boardName];
         const bb = b.boards[boardName];
         if (!ba && !bb) return "";
         return `
           <div class="section-title">${title}</div>
-          ${statRow("Races", ba?.races ?? 0, bb?.races ?? 0)}
-          ${statRow("Avg speed", ba?.speed ?? 0, bb?.speed ?? 0, { suffix: " wpm" })}
-          ${statRow("Accuracy", ba?.accuracy ?? 0, bb?.accuracy ?? 0, { suffix: "%" })}
-          ${statRow("Points", ba?.points ?? 0, bb?.points ?? 0)}`;
+          ${statRow("Races", ba?.races ?? 0, bb?.races ?? 0, { tally })}
+          ${statRow("Avg speed", ba?.speed ?? 0, bb?.speed ?? 0, { suffix: " wpm", tally })}
+          ${statRow("Accuracy", ba?.accuracy ?? 0, bb?.accuracy ?? 0, { suffix: "%", tally })}
+          ${statRow("Points", ba?.points ?? 0, bb?.points ?? 0, { tally })}
+          ${statRow("Points/race", ba?.ppr ?? 0, bb?.ppr ?? 0, { tally })}`;
       };
       const paceLine = (t) =>
         t.trend.minRaces
           ? `<b>${t.trend.onPaceCount}/${t.trend.eligibleCount}</b> members on pace for the ${t.trend.minRaces}-race weekly requirement`
           : `No weekly race requirement set`;
-      return `
-        <div class="names">
-          <span class="name-cell a">[${a.tag}] ${escapeHtml(a.name)}</span>
-          <span class="vs-mid">vs</span>
-          <span class="name-cell b">${escapeHtml(b.name)} [${b.tag}]</span>
-        </div>
+      const body = `
         <div class="section-title">Roster</div>
-        ${statRow("Members", a.memberCount, b.memberCount)}
-        ${statRow("Active %", a.trend.activePercent, b.trend.activePercent, { suffix: "%" })}
-        ${statRow("Active (≤3d)", a.trend.activeRecentlyCount, b.trend.activeRecentlyCount)}
+        ${statRow("Members", a.memberCount, b.memberCount, { tally })}
+        ${statRow("Active %", a.trend.activePercent, b.trend.activePercent, { suffix: "%", tally })}
+        ${statRow("Active (≤3d)", a.trend.activeRecentlyCount, b.trend.activeRecentlyCount, { tally })}
         ${boardRows("alltime", "All-time")}
         ${boardRows("season", "This season")}
         ${boardRows("daily", "Today")}
         <div class="section-title">This week</div>
         <div class="trend-note">${a.tag}: ${paceLine(a)}</div>
         <div class="trend-note">${b.tag}: ${paceLine(b)}</div>`;
+      return `
+        <div class="names">
+          <span class="name-cell a">[${a.tag}] ${escapeHtml(a.name)}</span>
+          <span class="vs-mid">vs</span>
+          <span class="name-cell b">${escapeHtml(b.name)} [${b.tag}]</span>
+        </div>
+        ${duelScore(tally, a.tag, b.tag)}
+        ${body}`;
     }
 
     function renderRacers(a, b) {
+      const tally = { a: 0, b: 0 };
       const fmtAge = (days) => {
         if (days == null) return "—";
         if (days < 30) return `${days}d`;
         if (days < 365) return `${Math.round(days / 30)}mo`;
         return `${(days / 365).toFixed(1)}yr`;
       };
+      const body = `
+        <div class="section-title">Profile</div>
+        ${statRow("Level", a.level, b.level, { tally })}
+        ${statRow("Lifetime races", a.racesPlayed, b.racesPlayed, { tally })}
+        ${statRow("Avg speed", a.avgSpeed, b.avgSpeed, { suffix: " wpm", tally })}
+        ${statRow("Top speed", a.highestSpeed, b.highestSpeed, { suffix: " wpm", tally })}
+        <div class="section-title">Extras</div>
+        ${statRow("League tier", a.leagueTier, b.leagueTier, { tally })}
+        ${statRow("Membership", a.membership, b.membership, { noWin: true, bar: false })}
+        ${statRow("Longest session", a.longestSession, b.longestSession, { suffix: " min", tally })}
+        ${statRow("Racing since", fmtAge(a.accountAgeDays), fmtAge(b.accountAgeDays), { noWin: true, bar: false })}
+        <div class="trend-note">Nitro Type's racer pages no longer expose a season/daily breakdown, so this is lifetime data only — not a recent-form snapshot.</div>`;
       return `
         <div class="names">
           <span class="name-cell a">${escapeHtml(a.displayName)}${a.tag ? ` [${a.tag}]` : ""}</span>
           <span class="vs-mid">vs</span>
           <span class="name-cell b">${escapeHtml(b.displayName)}${b.tag ? ` [${b.tag}]` : ""}</span>
         </div>
-        <div class="section-title">Profile</div>
-        ${statRow("Level", a.level, b.level)}
-        ${statRow("Lifetime races", a.racesPlayed, b.racesPlayed)}
-        ${statRow("Avg speed", a.avgSpeed, b.avgSpeed, { suffix: " wpm" })}
-        ${statRow("Top speed", a.highestSpeed, b.highestSpeed, { suffix: " wpm" })}
-        <div class="section-title">Extras</div>
-        ${statRow("League tier", a.leagueTier, b.leagueTier)}
-        ${statRow("Membership", a.membership, b.membership, { noWin: true })}
-        ${statRow("Longest session", a.longestSession, b.longestSession, { suffix: " min" })}
-        ${statRow("Racing since", fmtAge(a.accountAgeDays), fmtAge(b.accountAgeDays), { noWin: true })}
-        <div class="trend-note">Nitro Type's racer pages no longer expose a season/daily breakdown, so this is lifetime data only — not a recent-form snapshot.</div>`;
+        ${duelScore(tally, a.displayName, b.displayName)}
+        ${body}`;
     }
 
     function setStatus(msg, isError = false) {
@@ -512,7 +556,7 @@
       color: var(--nt-gold); font-size: 12px; font-weight: 700; text-transform: uppercase;
       letter-spacing: 0.06em; margin: 22px 0 10px; border-top: 1px solid var(--nt-line); padding-top: 16px;
     }
-    .stat-row { display: grid; grid-template-columns: 1fr 120px 1fr; align-items: center; gap: 12px; padding: 7px 0; background: var(--nt-panel); border-radius: 6px; margin-bottom: 2px; }
+    .stat-row { display: grid; grid-template-columns: 1fr 120px 1fr; grid-template-rows: auto auto; align-items: center; gap: 2px 12px; padding: 7px 0 9px; background: var(--nt-panel); border-radius: 6px; margin-bottom: 2px; }
     .stat-val { font-weight: 800; font-variant-numeric: tabular-nums; font-size: 15px; padding: 0 14px; }
     .stat-val.a { text-align: left; }
     .stat-val.b { text-align: right; }
@@ -520,6 +564,21 @@
     .stat-label { text-align: center; color: var(--nt-dim); font-size: 12px; font-weight: 600; }
     .trend-note { font-size: 13px; color: var(--nt-dim); line-height: 1.6; padding: 10px 14px; background: var(--nt-panel); border-radius: 6px; margin-top: 10px; }
     .trend-note b { color: var(--nt-gold); }
+
+    /* Lead bar under each stat row — same "who's ahead" read as StarTrack's
+       Showdown tier bars, built from the single snapshot we fetch. */
+    .stat-bar { grid-column: 1 / -1; display: flex; height: 5px; border-radius: 3px; overflow: hidden; margin: 0 14px; background: var(--nt-line); }
+    .stat-bar-a { background: var(--nt-gold); }
+    .stat-bar-b { background: var(--nt-red); }
+
+    /* Duel-score strip — tallies how many rows below each side won, the
+       same "A 10 – 5 B" summary StarTrack opens its Showdown page with. */
+    .duel-score { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; padding: 14px 0 6px; }
+    .duel-val { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--nt-dim); }
+    .duel-val.a { text-align: right; }
+    .duel-val.b { text-align: left; }
+    .duel-val.lead { color: var(--nt-gold); }
+    .duel-mid { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--nt-dim); text-transform: uppercase; }
   `;
 
   const { root } = buildPanel();
