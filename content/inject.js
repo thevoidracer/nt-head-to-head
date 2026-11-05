@@ -12,6 +12,13 @@
   const NAV_TAB_ID = "ntcmp-nav-tab";
   let panelApi = null; // set once the panel is built
 
+  function storageGet(key) {
+    return new Promise((resolve) => chrome.storage.local.get([key], (r) => resolve(r[key])));
+  }
+  function storageSet(obj) {
+    return new Promise((resolve) => chrome.storage.local.set(obj, resolve));
+  }
+
   // ---------------------------------------------------------------------
   // Shared team list — a small, separate database (not the TypeTrack
   // website's own) that every install of this extension reads from and
@@ -92,17 +99,16 @@
 
   const TeamDirectory = (() => {
     let teams = [];
+    let seenCount = 0;
     const subscribers = [];
-
-    function storageGet(key) {
-      return new Promise((resolve) => chrome.storage.local.get([key], (r) => resolve(r[key])));
-    }
-    function storageSet(obj) {
-      return new Promise((resolve) => chrome.storage.local.set(obj, resolve));
-    }
 
     async function load() {
       teams = (await storageGet("ntcmp:knownTeams")) || [];
+      const storedSeen = await storageGet("ntcmp:teamsSeenCount");
+      // First run: baseline to the current count so the "new since you last
+      // looked" badge doesn't fire on a list you've never actually opened.
+      seenCount = storedSeen == null ? teams.length : storedSeen;
+      if (storedSeen == null) await storageSet({ "ntcmp:teamsSeenCount": seenCount });
       notify();
     }
 
@@ -173,6 +179,18 @@
       return teams.slice();
     }
 
+    // How many teams have arrived (locally or via the shared list) since
+    // the Teams tab was last actually opened — drives the small counter
+    // badge on the fab/nav tab so there's a signal without opening it.
+    function unseenCount() {
+      return Math.max(0, teams.length - seenCount);
+    }
+    async function markSeen() {
+      seenCount = teams.length;
+      await storageSet({ "ntcmp:teamsSeenCount": seenCount });
+      notify();
+    }
+
     function subscribe(fn) {
       subscribers.push(fn);
     }
@@ -205,22 +223,326 @@
 
     async function captureFromPath(pathname) {
       const m = pathname.match(/^\/team\/([^/?#]+)/i);
-      if (!m) return;
+      if (!m) return null;
       const tag = decodeURIComponent(m[1]).toUpperCase();
       try {
         const team = await NT.fetchTeam(tag);
         await remember(team);
+        return team;
       } catch (e) {
         // Not fatal — just don't add it.
+        return null;
       }
     }
 
     load();
-    return { remember, mergeRemote, list, subscribe, seedOnce, captureFromPath };
+    return { remember, mergeRemote, list, unseenCount, markSeen, subscribe, seedOnce, captureFromPath };
   })();
 
   TeamDirectory.seedOnce();
   SharedTeams.pullAll().then((remote) => TeamDirectory.mergeRemote(remote));
+
+  // ---------------------------------------------------------------------
+  // Settings — just "my team" and "my racer", so the on-page comparison
+  // badges (below) know what to compare whatever you're looking at
+  // against. Nothing here is sent anywhere; it's used purely to build the
+  // two NT API calls the badges make.
+  // ---------------------------------------------------------------------
+
+  const Settings = (() => {
+    let myTeam = "";
+    let myRacer = "";
+    const subscribers = [];
+
+    async function load() {
+      myTeam = (await storageGet("ntcmp:myTeam")) || "";
+      myRacer = (await storageGet("ntcmp:myRacer")) || "";
+      notify();
+    }
+    function notify() {
+      subscribers.forEach((fn) => fn({ myTeam, myRacer }));
+    }
+    function subscribe(fn) {
+      subscribers.push(fn);
+    }
+    function get() {
+      return { myTeam, myRacer };
+    }
+    async function setMyTeam(tag) {
+      myTeam = (tag || "").trim().toUpperCase();
+      await storageSet({ "ntcmp:myTeam": myTeam });
+      notify();
+    }
+    async function setMyRacer(username) {
+      myRacer = (username || "").trim();
+      await storageSet({ "ntcmp:myRacer": myRacer });
+      notify();
+    }
+
+    load();
+    return { get, subscribe, setMyTeam, setMyRacer };
+  })();
+
+  // ---------------------------------------------------------------------
+  // Watch list — a short, explicit "notify me" list the user builds from
+  // the Teams tab (the star on each card). The content script just owns
+  // the list; background.js (persistent across page loads, unlike this
+  // script) is what actually re-checks these on a timer and fires the
+  // notification when something changes.
+  // ---------------------------------------------------------------------
+
+  const WatchList = (() => {
+    const MAX_WATCHED = 10;
+    let tags = [];
+    const subscribers = [];
+
+    async function load() {
+      tags = (await storageGet("ntcmp:watchedTeams")) || [];
+      notify();
+    }
+    function notify() {
+      subscribers.forEach((fn) => fn(tags));
+    }
+    function subscribe(fn) {
+      subscribers.push(fn);
+    }
+    function has(tag) {
+      return tags.includes(tag);
+    }
+    function list() {
+      return tags.slice();
+    }
+    async function toggle(tag) {
+      const clean = (tag || "").trim().toUpperCase();
+      if (!clean) return;
+      const idx = tags.indexOf(clean);
+      if (idx >= 0) {
+        tags.splice(idx, 1);
+      } else {
+        if (tags.length >= MAX_WATCHED) return;
+        tags.push(clean);
+        // Let background.js grab a fresh baseline snapshot right away,
+        // rather than waiting for its next scheduled check.
+        chrome.runtime.sendMessage({ type: "ntcmp:watchAdded", tag: clean }).catch(() => {});
+      }
+      await storageSet({ "ntcmp:watchedTeams": tags });
+      notify();
+    }
+
+    load();
+    return { has, list, toggle, subscribe, MAX_WATCHED };
+  })();
+
+  // Manrope — the same clean, squared-but-flowing geometric sans StarTrack
+  // itself uses. Self-hosted in the extension (one variable-weight file,
+  // rather than pulled from Google Fonts at runtime) so it always loads
+  // regardless of nitrotype.com's own CSP. Defined up here (rather than
+  // down by buildPanel, where it conceptually belongs) because the
+  // on-page comparison badges below need it too, in their own separate
+  // Shadow DOM hosts.
+  const FONT_FACE_CSS = `
+    @font-face {
+      font-family: "Manrope";
+      font-weight: 200 800;
+      font-style: normal;
+      src: url("${chrome.runtime.getURL("fonts/Manrope-Variable.ttf")}") format("truetype-variations");
+    }
+  `;
+
+  function escBadge(s) {
+    return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function fmtDiff(n) {
+    const r = Math.round((n || 0) * 10) / 10;
+    if (r === 0) return "±0";
+    return (r > 0 ? "+" : "") + r;
+  }
+  function diffClass(n) {
+    return n > 0 ? "pos" : n < 0 ? "neg" : "zero";
+  }
+
+  const BADGE_CSS = `
+    :host, * { box-sizing: border-box; }
+    :host {
+      --nt-panel: #13223a; --nt-line: #24395c; --nt-text: #f0f4fa;
+      --nt-dim: #8fa3bf; --nt-gold: #f0c75e;
+      --nt-font: "Manrope", "Segoe UI", Roboto, system-ui, sans-serif;
+      all: initial;
+    }
+    .badge {
+      position: fixed; z-index: 2147482998; right: 24px; bottom: 192px;
+      display: block; width: 236px; text-decoration: none; cursor: pointer;
+      background: var(--nt-panel); border: 1px solid var(--nt-line); border-left: 4px solid var(--nt-gold);
+      border-radius: 10px; padding: 14px 16px; color: var(--nt-text);
+      font-family: var(--nt-font); box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    }
+    .badge:hover { border-color: var(--nt-gold); }
+    .badge-head { font-weight: 800; font-size: 14px; margin-bottom: 4px; }
+    .badge-verdict { color: var(--nt-gold); font-size: 12px; font-weight: 700; margin-bottom: 8px; }
+    .badge-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--nt-dim); padding: 2px 0; }
+    .badge-row b { color: var(--nt-text); font-weight: 700; }
+    .badge-row .diff.pos { color: #6fcf6f; }
+    .badge-row .diff.neg { color: #ff7a6e; }
+    .badge-row .diff.zero { color: var(--nt-dim); }
+    .badge-foot { margin-top: 8px; font-size: 11px; color: var(--nt-gold); font-weight: 700; }
+  `;
+
+  // ---------------------------------------------------------------------
+  // Team-page comparison badge — on any team's own nitrotype.com page
+  // (not your own), shows how it stacks up against the team you've set
+  // as "mine" in Settings, with a click-through into a full Compare. Only
+  // appears once "my team" is actually set.
+  // ---------------------------------------------------------------------
+
+  const TeamBadge = (() => {
+    let host = null;
+    let root = null;
+    let myTeamCache = null; // { tag, data, fetchedAt }
+
+    function ensureHost() {
+      if (host) return root;
+      host = document.createElement("div");
+      host.id = "ntcmp-team-badge-host";
+      host.style.all = "initial";
+      document.body.appendChild(host);
+      root = host.attachShadow({ mode: "open" });
+      root.innerHTML = `<style>${FONT_FACE_CSS}${BADGE_CSS}</style><a class="badge" id="badge" href="#" hidden></a>`;
+      return root;
+    }
+
+    async function getMyTeam(tag) {
+      if (myTeamCache && myTeamCache.tag === tag && Date.now() - myTeamCache.fetchedAt < 5 * 60 * 1000) {
+        return myTeamCache.data;
+      }
+      const data = await NT.fetchTeam(tag);
+      myTeamCache = { tag, data, fetchedAt: Date.now() };
+      return data;
+    }
+
+    async function show(viewedTeam) {
+      const { myTeam } = Settings.get();
+      const r = ensureHost();
+      const badge = r.getElementById("badge");
+      if (!myTeam || myTeam === viewedTeam.tag) {
+        badge.hidden = true;
+        return;
+      }
+      let mine;
+      try {
+        mine = await getMyTeam(myTeam);
+      } catch (e) {
+        badge.hidden = true;
+        return;
+      }
+      const diffMembers = (viewedTeam.memberCount ?? 0) - (mine.memberCount ?? 0);
+      const theirSpeed = viewedTeam.info?.minSpeed ?? 0;
+      const mySpeed = mine.info?.minSpeed ?? 0;
+      const theirRaces = viewedTeam.trend?.minRaces ?? 0;
+      const myRaces = mine.trend?.minRaces ?? 0;
+      const diffSpeed = theirSpeed - mySpeed;
+      const diffRaces = theirRaces - myRaces;
+      const verdict =
+        diffSpeed <= 0 && diffRaces <= 0 && (diffSpeed < 0 || diffRaces < 0)
+          ? "Lower requirements than yours"
+          : diffSpeed >= 0 && diffRaces >= 0 && (diffSpeed > 0 || diffRaces > 0)
+          ? "Higher requirements than yours"
+          : "Even with yours";
+      badge.innerHTML = `
+        <div class="badge-head">[${escBadge(viewedTeam.tag)}] vs your [${escBadge(mine.tag)}]</div>
+        <div class="badge-verdict">${verdict}</div>
+        <div class="badge-row">Members <span><b>${viewedTeam.memberCount ?? "—"}</b> <span class="diff ${diffClass(diffMembers)}">${fmtDiff(diffMembers)}</span></span></div>
+        <div class="badge-row">Min speed <span><b>${theirSpeed}</b> <span class="diff ${diffClass(diffSpeed)}">${fmtDiff(diffSpeed)}</span></span></div>
+        <div class="badge-row">Min races <span><b>${theirRaces}</b> <span class="diff ${diffClass(diffRaces)}">${fmtDiff(diffRaces)}</span></span></div>
+        <div class="badge-foot">Click to open full Compare</div>`;
+      badge.hidden = false;
+      badge.onclick = (e) => {
+        e.preventDefault();
+        if (panelApi) {
+          panelApi.open();
+          panelApi.compareTeams(mine.tag, viewedTeam.tag);
+        }
+      };
+    }
+
+    function hide() {
+      if (root) root.getElementById("badge").hidden = true;
+    }
+
+    return { show, hide };
+  })();
+
+  // ---------------------------------------------------------------------
+  // Racer-page comparison badge — same idea, on a racer's own profile
+  // page, against the racer you've set as "mine" in Settings.
+  // ---------------------------------------------------------------------
+
+  const RacerBadge = (() => {
+    let host = null;
+    let root = null;
+    let myRacerCache = null; // { username, data, fetchedAt }
+
+    function ensureHost() {
+      if (host) return root;
+      host = document.createElement("div");
+      host.id = "ntcmp-racer-badge-host";
+      host.style.all = "initial";
+      document.body.appendChild(host);
+      root = host.attachShadow({ mode: "open" });
+      root.innerHTML = `<style>${FONT_FACE_CSS}${BADGE_CSS}</style><a class="badge" id="badge" href="#" hidden></a>`;
+      return root;
+    }
+
+    async function getMyRacer(username) {
+      if (myRacerCache && myRacerCache.username.toLowerCase() === username.toLowerCase() && Date.now() - myRacerCache.fetchedAt < 5 * 60 * 1000) {
+        return myRacerCache.data;
+      }
+      const data = await NT.fetchRacer(username);
+      myRacerCache = { username, data, fetchedAt: Date.now() };
+      return data;
+    }
+
+    async function showForUsername(username) {
+      const { myRacer } = Settings.get();
+      const r = ensureHost();
+      const badge = r.getElementById("badge");
+      if (!myRacer || myRacer.toLowerCase() === username.toLowerCase()) {
+        badge.hidden = true;
+        return;
+      }
+      let mine, theirs;
+      try {
+        [mine, theirs] = await Promise.all([getMyRacer(myRacer), NT.fetchRacer(username)]);
+      } catch (e) {
+        badge.hidden = true;
+        return;
+      }
+      const diffAvg = (theirs.avgSpeed ?? 0) - (mine.avgSpeed ?? 0);
+      const diffTop = (theirs.highestSpeed ?? 0) - (mine.highestSpeed ?? 0);
+      const diffRaces = (theirs.racesPlayed ?? 0) - (mine.racesPlayed ?? 0);
+      const verdict = diffAvg > 0 ? "Faster than you on average" : diffAvg < 0 ? "Slower than you on average" : "Even with you on average";
+      badge.innerHTML = `
+        <div class="badge-head">${escBadge(theirs.displayName)} vs you</div>
+        <div class="badge-verdict">${verdict}</div>
+        <div class="badge-row">Avg speed <span><b>${theirs.avgSpeed ?? 0}</b> <span class="diff ${diffClass(diffAvg)}">${fmtDiff(diffAvg)}</span></span></div>
+        <div class="badge-row">Top speed <span><b>${theirs.highestSpeed ?? 0}</b> <span class="diff ${diffClass(diffTop)}">${fmtDiff(diffTop)}</span></span></div>
+        <div class="badge-row">Lifetime races <span><b>${theirs.racesPlayed ?? 0}</b> <span class="diff ${diffClass(diffRaces)}">${fmtDiff(diffRaces)}</span></span></div>
+        <div class="badge-foot">Click to open full Compare</div>`;
+      badge.hidden = false;
+      badge.onclick = (e) => {
+        e.preventDefault();
+        if (panelApi) {
+          panelApi.open();
+          panelApi.compareRacers(mine.username, theirs.username);
+        }
+      };
+    }
+
+    function hide() {
+      if (root) root.getElementById("badge").hidden = true;
+    }
+
+    return { showForUsername, hide };
+  })();
 
   // ---------------------------------------------------------------------
   // Nav tab injection (clones a real nav <li> so it inherits NT's own
@@ -240,9 +562,20 @@
     link.removeAttribute("href");
     link.style.cursor = "pointer";
     link.setAttribute("role", "button");
-    // Keep whatever wrapper markup NT uses, just swap the visible label.
+    // Keep whatever wrapper markup NT uses, just swap the visible label —
+    // as its own text node plus a badge span, so the unseen-teams counter
+    // (see updateNavBadge below) has somewhere to live without us having
+    // to re-clone or re-style NT's own nav markup.
     const labelNode = link.querySelector("span") || link;
-    labelNode.textContent = "⚡ TypeTrack";
+    labelNode.textContent = "";
+    labelNode.append("⚡ TypeTrack");
+    const badge = document.createElement("span");
+    badge.id = "ntcmp-nav-badge";
+    badge.style.cssText =
+      "display:inline-block;margin-left:6px;min-width:16px;padding:1px 5px;border-radius:9px;" +
+      "background:#f0c75e;color:#13223a;font-size:11px;font-weight:800;line-height:1.4;text-align:center;";
+    badge.hidden = true;
+    labelNode.append(badge);
     link.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -250,14 +583,37 @@
     });
 
     li.parentNode.insertBefore(clone, li.nextSibling);
+    updateNavBadge(TeamDirectory.unseenCount());
   }
+
+  function updateNavBadge(n) {
+    const badge = document.getElementById("ntcmp-nav-badge");
+    if (!badge) return;
+    badge.textContent = n > 99 ? "99+" : String(n);
+    badge.hidden = n === 0;
+  }
+  TeamDirectory.subscribe(() => updateNavBadge(TeamDirectory.unseenCount()));
 
   let lastCapturedPath = null;
   function onPossibleNavigation() {
     ensureNavTab();
     if (location.pathname !== lastCapturedPath) {
       lastCapturedPath = location.pathname;
-      TeamDirectory.captureFromPath(location.pathname);
+      const teamMatch = location.pathname.match(/^\/team\/([^/?#]+)/i);
+      const racerMatch = location.pathname.match(/^\/racer\/([^/?#]+)/i);
+      if (teamMatch) {
+        RacerBadge.hide();
+        TeamDirectory.captureFromPath(location.pathname).then((team) => {
+          if (team) TeamBadge.show(team);
+          else TeamBadge.hide();
+        });
+      } else if (racerMatch) {
+        TeamBadge.hide();
+        RacerBadge.showForUsername(decodeURIComponent(racerMatch[1]));
+      } else {
+        TeamBadge.hide();
+        RacerBadge.hide();
+      }
     }
   }
 
@@ -274,19 +630,6 @@
   // Panel (Shadow DOM — fully isolated styling in both directions)
   // ---------------------------------------------------------------------
 
-  // Manrope — the same clean, squared-but-flowing geometric sans StarTrack
-  // itself uses. Self-hosted in the extension (one variable-weight file,
-  // rather than pulled from Google Fonts at runtime) so it always loads
-  // regardless of nitrotype.com's own CSP.
-  const FONT_FACE_CSS = `
-    @font-face {
-      font-family: "Manrope";
-      font-weight: 200 800;
-      font-style: normal;
-      src: url("${chrome.runtime.getURL("fonts/Manrope-Variable.ttf")}") format("truetype-variations");
-    }
-  `;
-
   function buildPanel() {
     const host = document.createElement("div");
     host.id = "ntcmp-host";
@@ -296,7 +639,9 @@
 
     root.innerHTML = `
       <style>${FONT_FACE_CSS}${PANEL_CSS}</style>
-      <button id="fab" class="fab" aria-label="Open TypeTrack" title="TypeTrack — compare &amp; browse teams"><span class="fab-bolt">⚡</span>TypeTrack</button>
+      <button id="fab" class="fab" aria-label="Open TypeTrack" title="TypeTrack — compare &amp; browse teams">
+        <span class="fab-bolt">⚡</span>TypeTrack<span class="fab-badge" id="fab-badge" hidden></span>
+      </button>
       <div class="backdrop" id="backdrop"></div>
       <div class="panel" id="panel">
         <header class="head">
@@ -306,7 +651,21 @@
               <button class="mode-btn view-btn active" data-view="compare" type="button">Compare</button>
               <button class="mode-btn view-btn" data-view="teams" type="button">Teams</button>
             </div>
+            <button class="gear-btn" id="gear-btn" aria-label="Settings" title="Set your team &amp; racer">⚙</button>
             <button class="close-btn" id="close-btn" aria-label="Close">✕</button>
+          </div>
+          <div class="settings-pop" id="settings-pop" hidden>
+            <div class="settings-title">Your identity</div>
+            <div class="settings-note">Used only to compare whatever team or racer page you're on against your own, right there on the page.</div>
+            <label class="settings-field">
+              <span>My team tag</span>
+              <input type="text" id="settings-my-team" placeholder="e.g. IMT" autocomplete="off" spellcheck="false" />
+            </label>
+            <label class="settings-field">
+              <span>My racer username</span>
+              <input type="text" id="settings-my-racer" placeholder="e.g. voidracer" autocomplete="off" spellcheck="false" />
+            </label>
+            <button type="button" class="settings-save" id="settings-save">Save</button>
           </div>
         </header>
 
@@ -403,8 +762,14 @@
 
     const els = {
       fab: root.getElementById("fab"),
+      fabBadge: root.getElementById("fab-badge"),
       backdrop: root.getElementById("backdrop"),
       panel: root.getElementById("panel"),
+      gearBtn: root.getElementById("gear-btn"),
+      settingsPop: root.getElementById("settings-pop"),
+      settingsMyTeam: root.getElementById("settings-my-team"),
+      settingsMyRacer: root.getElementById("settings-my-racer"),
+      settingsSave: root.getElementById("settings-save"),
       closeBtn: root.getElementById("close-btn"),
       viewBtns: root.querySelectorAll(".view-btn"),
       viewCompare: root.getElementById("view-compare"),
@@ -432,6 +797,34 @@
       status: root.getElementById("status"),
       result: root.getElementById("result"),
     };
+
+    // Settings popover (gear icon) — "my team" / "my racer", feeding the
+    // on-page comparison badges.
+    els.gearBtn.addEventListener("click", () => {
+      els.settingsPop.hidden = !els.settingsPop.hidden;
+    });
+    function fillSettingsInputs({ myTeam, myRacer }) {
+      els.settingsMyTeam.value = myTeam || "";
+      els.settingsMyRacer.value = myRacer || "";
+    }
+    fillSettingsInputs(Settings.get());
+    Settings.subscribe(fillSettingsInputs);
+    els.settingsSave.addEventListener("click", async () => {
+      await Settings.setMyTeam(els.settingsMyTeam.value);
+      await Settings.setMyRacer(els.settingsMyRacer.value);
+      els.settingsPop.hidden = true;
+    });
+
+    // Unseen-teams counter — a small badge on the fab showing how many
+    // teams (local finds + shared-list syncs) have shown up since the
+    // Teams tab was last actually opened.
+    function updateFabBadge() {
+      const n = TeamDirectory.unseenCount();
+      els.fabBadge.textContent = n > 99 ? "99+" : String(n);
+      els.fabBadge.hidden = n === 0;
+    }
+    updateFabBadge();
+    TeamDirectory.subscribe(updateFabBadge);
 
     function renderKnownTeamsDatalist(teams) {
       els.knownTeamsList.innerHTML = teams
@@ -468,6 +861,7 @@
       if (view === "teams") {
         renderTeamsList();
         els.teamsSearch.focus();
+        TeamDirectory.markSeen();
       }
     }
     els.viewBtns.forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
@@ -511,13 +905,18 @@
         .filter((t) => minMembers === null || (t.members ?? 0) >= minMembers)
         .sort(TEAM_SORTERS[sortBy] || TEAM_SORTERS.tag);
       const filtered = q || maxSpeed !== null || maxRaces !== null || minMembers !== null;
-      els.teamsCount.textContent = filtered ? `${items.length} of ${all.length} teams tracked` : `${all.length} teams tracked`;
+      const watchedCount = WatchList.list().length;
+      els.teamsCount.textContent =
+        (filtered ? `${items.length} of ${all.length} teams tracked` : `${all.length} teams tracked`) +
+        (watchedCount ? ` · ${watchedCount} watched` : "");
       els.teamsList.innerHTML = items.length
         ? items
             .map((t) => {
               const color = t.color ? `#${t.color}` : "var(--nt-gold)";
+              const watching = WatchList.has(t.tag);
               return `
                 <a class="team-card" href="https://www.nitrotype.com/team/${encodeURIComponent(t.tag)}" target="_blank" rel="noopener" data-tag="${escapeHtml(t.tag)}" style="--team-color:${color}">
+                  <button type="button" class="team-card-watch${watching ? " active" : ""}" data-tag="${escapeHtml(t.tag)}" title="${watching ? "Stop watching for changes" : "Watch for changes (captain, requirements, member swings)"}">${watching ? "★" : "☆"}</button>
                   <div class="team-card-head"><span class="team-card-tag" style="color:${color}">[${escapeHtml(t.tag)}]</span> <span class="team-card-name">${escapeHtml(t.name)}</span></div>
                   <div class="team-card-row">Captain: <b>${escapeHtml(t.captain || "—")}</b></div>
                   <div class="team-card-row">Members: <b>${t.members ?? "—"}</b> · Formed: <b>${fmtFormed(t.formed)}</b></div>
@@ -535,6 +934,18 @@
       el.addEventListener("input", renderTeamsList)
     );
     els.teamsSort.addEventListener("change", renderTeamsList);
+    // Event delegation: the star buttons get wiped and recreated on every
+    // render, so listen on the stable grid container instead of each card.
+    els.teamsList.addEventListener("click", (e) => {
+      const btn = e.target.closest(".team-card-watch");
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      WatchList.toggle(btn.dataset.tag);
+    });
+    WatchList.subscribe(() => {
+      if (!els.viewTeams.hidden) renderTeamsList();
+    });
     els.teamsFiltersClear.addEventListener("click", () => {
       els.teamsSearch.value = "";
       els.teamsSort.value = "tag";
@@ -785,6 +1196,23 @@
       else open();
     }
 
+    // Driven by the on-page comparison badges (TeamBadge/RacerBadge): pop
+    // the panel straight to a filled-in, already-submitted Compare.
+    function compareTeams(a, b) {
+      setMode("team");
+      setView("compare");
+      els.inputA.value = a;
+      els.inputB.value = b;
+      els.form.requestSubmit();
+    }
+    function compareRacers(a, b) {
+      setMode("racer");
+      setView("compare");
+      els.inputA.value = a;
+      els.inputB.value = b;
+      els.form.requestSubmit();
+    }
+
     els.fab.addEventListener("click", toggle);
     els.closeBtn.addEventListener("click", close);
     els.backdrop.addEventListener("click", close);
@@ -795,7 +1223,7 @@
     setMode("team");
     setView("compare");
 
-    return { open, close, toggle };
+    return { open, close, toggle, compareTeams, compareRacers };
   }
 
   const PANEL_CSS = `
@@ -829,6 +1257,11 @@
     }
     .fab:hover { filter: brightness(1.1); transform: scale(1.05); }
     .fab-bolt { font-size: 18px; }
+    .fab-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+      background: var(--nt-gold); color: #13223a; font-size: 11px; font-weight: 800;
+    }
 
     .backdrop {
       position: fixed; inset: 0; background: rgba(4,9,18,0.7);
@@ -868,8 +1301,30 @@
       border-radius: 6px; cursor: pointer; font-family: inherit;
     }
     .mode-btn.active { background: var(--nt-red); color: #fff; }
+    .gear-btn { background: none; border: none; color: var(--nt-dim); font-size: 17px; cursor: pointer; padding: 2px 6px; }
+    .gear-btn:hover { color: var(--nt-text); }
     .close-btn { background: none; border: none; color: var(--nt-dim); font-size: 20px; cursor: pointer; padding: 2px 8px; }
     .close-btn:hover { color: var(--nt-text); }
+
+    .settings-pop {
+      position: absolute; top: 100%; right: 28px; margin-top: 8px; z-index: 3;
+      width: 260px; background: var(--nt-panel); border: 1px solid var(--nt-line);
+      border-radius: 10px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .settings-title { font-weight: 800; font-size: 14px; }
+    .settings-note { font-size: 11.5px; color: var(--nt-dim); line-height: 1.5; }
+    .settings-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--nt-dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+    .settings-field input {
+      background: var(--nt-bg); border: 1px solid var(--nt-line); color: var(--nt-text);
+      border-radius: 6px; padding: 8px 10px; font-size: 13px; font-family: inherit; text-transform: none;
+    }
+    .settings-field input:focus { outline: 2px solid var(--nt-red); outline-offset: -1px; }
+    .settings-save {
+      background: var(--nt-red); color: #fff; border: none; border-radius: 7px;
+      padding: 9px; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit;
+    }
+    .settings-save:hover { filter: brightness(1.12); }
 
     .content { width: 100%; max-width: 1180px; margin: 0 auto; padding: 32px 24px 60px; flex: 1; }
     .compare-inner { max-width: 760px; margin: 0 auto; }
@@ -930,12 +1385,19 @@
     .teams-filters-clear:hover { color: var(--nt-text); border-color: var(--nt-text); }
     .teams-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
     .team-card {
+      position: relative;
       text-align: left; cursor: pointer; background: var(--nt-panel); border: 1px solid var(--nt-line);
       border-left: 4px solid var(--team-color, var(--nt-gold)); border-radius: 8px; padding: 16px 16px 12px;
       display: flex; flex-direction: column; gap: 5px; text-decoration: none; color: inherit;
     }
     .team-card:hover, .team-card:focus-visible { background: var(--nt-panel-raised); border-color: var(--nt-gold); outline: none; }
-    .team-card-head { font-size: 15px; margin-bottom: 2px; }
+    .team-card-watch {
+      position: absolute; top: 10px; right: 10px; background: none; border: none;
+      color: var(--nt-dim); font-size: 17px; line-height: 1; cursor: pointer; padding: 2px;
+    }
+    .team-card-watch:hover { color: var(--nt-gold); }
+    .team-card-watch.active { color: var(--nt-gold); }
+    .team-card-head { font-size: 15px; margin-bottom: 2px; padding-right: 20px; }
     .team-card-tag { font-weight: 800; margin-right: 2px; }
     .team-card-name { font-weight: 700; color: var(--nt-text); }
     .team-card-row { font-size: 12.5px; color: var(--nt-dim); }

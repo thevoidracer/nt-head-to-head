@@ -70,6 +70,37 @@ the same clean, squared-but-flowing geometric sans [StarTrack](https://www.ntsta
 itself uses — self-hosted in the extension so it always loads regardless
 of nitrotype.com's own content-security policy.
 
+### On-page comparisons, without opening the panel at all
+
+Click the **⚙** gear in the panel header once and set "my team" tag and
+"my racer" username. From then on:
+
+- Visit any *other* team's real nitrotype.com page and a small badge
+  floats in showing how it stacks up against yours — member count, min
+  races, min speed, and a one-line "lower/higher requirements than
+  yours" verdict.
+- Visit any *other* racer's profile page and the same kind of badge
+  compares their avg speed, top speed, and lifetime races to your own
+  racer.
+- Click either badge to jump straight into a full, already-run Compare
+  with both sides filled in.
+
+### Unseen-teams counter
+
+The fab and the nav tab both show a small gold counter for how many
+teams have shown up — from your own browsing or from the shared list —
+since you last actually opened the Teams tab. It clears the moment you
+open it.
+
+### Watch a team for changes
+
+Click the ☆ star on any card in the Teams tab to watch it (up to 10 at
+once — it turns into ★). Roughly every 30 minutes, even with no
+nitrotype.com tab open, the extension quietly re-checks every watched
+team and fires a desktop notification if its captain changes, its
+race/speed requirement changes, or its member count swings by 5 or
+more.
+
 ## Install (not on the Chrome Web Store — load it manually)
 
 1. Download this repo as a zip: [direct download
@@ -91,6 +122,9 @@ exception is the shared team list: basic public team info (tag, name,
 color, captain, member count, requirements) is synced to and from a
 small open database so every install's Teams tab benefits from what every
 other install has found — nothing tied to your own account or identity is
-ever sent. Nothing else is collected or stored beyond what Chrome's own
-extension storage does automatically (the list of teams you've looked
-up, so the Teams tab and autocomplete can suggest them next time).
+ever sent. The "my team" / "my racer" settings and your watch list never
+leave your own browser — they're only ever used to build ordinary NT API
+calls from your machine. Nothing else is collected or stored beyond what
+Chrome's own extension storage does automatically (the list of teams
+you've looked up, so the Teams tab and autocomplete can suggest them
+next time).
