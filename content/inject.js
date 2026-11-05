@@ -121,7 +121,7 @@
     link.setAttribute("role", "button");
     // Keep whatever wrapper markup NT uses, just swap the visible label.
     const labelNode = link.querySelector("span") || link;
-    labelNode.textContent = "⚡ Head-to-Head";
+    labelNode.textContent = "⚡ TypeTrack";
     link.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -162,67 +162,70 @@
 
     root.innerHTML = `
       <style>${PANEL_CSS}</style>
-      <button id="fab" class="fab" aria-label="Open Head-to-Head" title="Head-to-Head comparator">⚡</button>
+      <button id="fab" class="fab" aria-label="Open TypeTrack" title="TypeTrack — compare &amp; browse teams">⚡</button>
       <div class="backdrop" id="backdrop"></div>
       <div class="panel" id="panel">
         <header class="head">
-          <span class="logo"><span class="logo-bolt">⚡</span>HEAD-TO-HEAD</span>
+          <span class="logo"><span class="logo-bolt">⚡</span>TYPETRACK</span>
           <div class="head-right">
-            <div class="mode-switch">
-              <button class="mode-btn active" data-mode="team" type="button">Teams</button>
-              <button class="mode-btn" data-mode="racer" type="button">Racers</button>
+            <div class="mode-switch view-switch">
+              <button class="mode-btn view-btn active" data-view="compare" type="button">Compare</button>
+              <button class="mode-btn view-btn" data-view="teams" type="button">Teams</button>
             </div>
             <button class="close-btn" id="close-btn" aria-label="Close">✕</button>
           </div>
         </header>
 
         <div class="content">
-          <form id="compare-form" class="inputs">
-            <label class="field">
-              <span class="field-label" id="label-a">Team A tag</span>
-              <input type="text" id="input-a" list="known-teams" autocomplete="off" spellcheck="false" />
-              <button type="button" class="find-link" id="find-a" hidden>Find by name</button>
-              <button type="button" class="find-link" id="browse-a" hidden>Browse teams</button>
-            </label>
-            <span class="vs">VS</span>
-            <label class="field">
-              <span class="field-label" id="label-b">Team B tag</span>
-              <input type="text" id="input-b" list="known-teams" autocomplete="off" spellcheck="false" />
-              <button type="button" class="find-link" id="find-b" hidden>Find by name</button>
-              <button type="button" class="find-link" id="browse-b" hidden>Browse teams</button>
-            </label>
-            <button type="submit" class="compare-btn">Compare</button>
-          </form>
-          <datalist id="known-teams"></datalist>
-
-          <div id="finder-a" class="finder" hidden>
-            <div class="finder-row">
-              <input type="text" class="finder-team-input" list="known-teams" placeholder="Team tag, e.g. IMT" autocomplete="off" spellcheck="false" />
-              <button type="button" class="finder-load-btn">Load roster</button>
+          <div id="view-compare" class="view">
+            <div class="mode-switch">
+              <button class="mode-btn active" data-mode="team" type="button">Teams</button>
+              <button class="mode-btn" data-mode="racer" type="button">Racers</button>
             </div>
-            <select class="finder-roster" hidden></select>
-            <div class="finder-status"></div>
-          </div>
-          <div id="finder-b" class="finder" hidden>
-            <div class="finder-row">
-              <input type="text" class="finder-team-input" list="known-teams" placeholder="Team tag, e.g. IMT" autocomplete="off" spellcheck="false" />
-              <button type="button" class="finder-load-btn">Load roster</button>
+            <form id="compare-form" class="inputs">
+              <label class="field">
+                <span class="field-label" id="label-a">Team A tag</span>
+                <input type="text" id="input-a" list="known-teams" autocomplete="off" spellcheck="false" />
+                <button type="button" class="find-link" id="find-a" hidden>Find by name</button>
+              </label>
+              <span class="vs">VS</span>
+              <label class="field">
+                <span class="field-label" id="label-b">Team B tag</span>
+                <input type="text" id="input-b" list="known-teams" autocomplete="off" spellcheck="false" />
+                <button type="button" class="find-link" id="find-b" hidden>Find by name</button>
+              </label>
+              <button type="submit" class="compare-btn">Compare</button>
+            </form>
+            <datalist id="known-teams"></datalist>
+
+            <div id="finder-a" class="finder" hidden>
+              <div class="finder-row">
+                <input type="text" class="finder-team-input" list="known-teams" placeholder="Team tag, e.g. IMT" autocomplete="off" spellcheck="false" />
+                <button type="button" class="finder-load-btn">Load roster</button>
+              </div>
+              <select class="finder-roster" hidden></select>
+              <div class="finder-status"></div>
             </div>
-            <select class="finder-roster" hidden></select>
-            <div class="finder-status"></div>
+            <div id="finder-b" class="finder" hidden>
+              <div class="finder-row">
+                <input type="text" class="finder-team-input" list="known-teams" placeholder="Team tag, e.g. IMT" autocomplete="off" spellcheck="false" />
+                <button type="button" class="finder-load-btn">Load roster</button>
+              </div>
+              <select class="finder-roster" hidden></select>
+              <div class="finder-status"></div>
+            </div>
+
+            <div id="status" class="status" hidden></div>
+            <div id="result" class="result" hidden></div>
           </div>
 
-          <div id="teambrowse-a" class="teambrowse" hidden>
-            <input type="text" class="teambrowse-search" placeholder="Search by tag or name…" autocomplete="off" spellcheck="false" />
-            <div class="teambrowse-list"></div>
+          <div id="view-teams" class="view" hidden>
+            <div class="teams-head">
+              <input type="text" id="teams-search" class="teams-search" placeholder="Search every tracked team by tag or name…" autocomplete="off" spellcheck="false" />
+              <span class="teams-count" id="teams-count"></span>
+            </div>
+            <div class="teams-list" id="teams-list"></div>
           </div>
-          <div id="teambrowse-b" class="teambrowse" hidden>
-            <input type="text" class="teambrowse-search" placeholder="Search by tag or name…" autocomplete="off" spellcheck="false" />
-            <div class="teambrowse-list"></div>
-          </div>
-
-          <div id="status" class="status" hidden></div>
-          <div id="result" class="result" hidden></div>
         </div>
       </div>`;
 
@@ -237,7 +240,10 @@
       backdrop: root.getElementById("backdrop"),
       panel: root.getElementById("panel"),
       closeBtn: root.getElementById("close-btn"),
-      modeBtns: root.querySelectorAll(".mode-btn"),
+      viewBtns: root.querySelectorAll(".view-btn"),
+      viewCompare: root.getElementById("view-compare"),
+      viewTeams: root.getElementById("view-teams"),
+      modeBtns: root.querySelectorAll(".mode-btn:not(.view-btn)"),
       labelA: root.getElementById("label-a"),
       labelB: root.getElementById("label-b"),
       inputA: root.getElementById("input-a"),
@@ -246,10 +252,9 @@
       findB: root.getElementById("find-b"),
       finderA: root.getElementById("finder-a"),
       finderB: root.getElementById("finder-b"),
-      browseA: root.getElementById("browse-a"),
-      browseB: root.getElementById("browse-b"),
-      teamBrowseA: root.getElementById("teambrowse-a"),
-      teamBrowseB: root.getElementById("teambrowse-b"),
+      teamsSearch: root.getElementById("teams-search"),
+      teamsList: root.getElementById("teams-list"),
+      teamsCount: root.getElementById("teams-count"),
       knownTeamsList: root.getElementById("known-teams"),
       form: root.getElementById("compare-form"),
       btn: root.querySelector(".compare-btn"),
@@ -278,17 +283,51 @@
       els.inputB.placeholder = isTeam ? "e.g. KU" : "e.g. speedking";
       els.findA.hidden = isTeam;
       els.findB.hidden = isTeam;
-      els.browseA.hidden = !isTeam;
-      els.browseB.hidden = !isTeam;
       if (isTeam) {
         els.finderA.hidden = true;
         els.finderB.hidden = true;
-      } else {
-        els.teamBrowseA.hidden = true;
-        els.teamBrowseB.hidden = true;
       }
     }
     els.modeBtns.forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
+
+    function setView(view) {
+      els.viewBtns.forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+      els.viewCompare.hidden = view !== "compare";
+      els.viewTeams.hidden = view !== "teams";
+      if (view === "teams") {
+        renderTeamsList();
+        els.teamsSearch.focus();
+      }
+    }
+    els.viewBtns.forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
+
+    // Full "Teams" tab — every team this install knows about (seeded +
+    // auto-grown, see TeamDirectory above), searchable, the same spirit as
+    // TypeTrack's own site-wide team filterer. Clicking one jumps back to
+    // Compare with it pre-filled as Team A, ready to pick an opponent.
+    function renderTeamsList() {
+      const q = els.teamsSearch.value.trim().toLowerCase();
+      const all = TeamDirectory.list();
+      const items = all
+        .filter((t) => !q || t.tag.toLowerCase().includes(q) || t.name.toLowerCase().includes(q))
+        .sort((t1, t2) => t1.tag.localeCompare(t2.tag));
+      els.teamsCount.textContent = q ? `${items.length} of ${all.length} teams` : `${all.length} teams`;
+      els.teamsList.innerHTML = items.length
+        ? items.map((t) => `<button type="button" class="team-item" data-tag="${escapeHtml(t.tag)}"><span class="team-item-tag">${escapeHtml(t.tag)}</span><span class="team-item-name">${escapeHtml(t.name)}</span></button>`).join("")
+        : `<div class="teams-empty">No teams match yet — keep comparing or browsing teams on nitrotype.com and this list grows.</div>`;
+    }
+    els.teamsSearch.addEventListener("input", renderTeamsList);
+    els.teamsList.addEventListener("click", (e) => {
+      const btn = e.target.closest(".team-item");
+      if (!btn) return;
+      els.inputA.value = btn.dataset.tag;
+      setMode("team");
+      setView("compare");
+      els.inputB.focus();
+    });
+    TeamDirectory.subscribe(() => {
+      if (!els.viewTeams.hidden) renderTeamsList();
+    });
 
     function wireFinder(side) {
       const findBtn = side === "a" ? els.findA : els.findB;
@@ -344,45 +383,6 @@
     }
     wireFinder("a");
     wireFinder("b");
-
-    function wireBrowse(side) {
-      const browseBtn = side === "a" ? els.browseA : els.browseB;
-      const panel = side === "a" ? els.teamBrowseA : els.teamBrowseB;
-      const mainInput = side === "a" ? els.inputA : els.inputB;
-      const searchInput = panel.querySelector(".teambrowse-search");
-      const listEl = panel.querySelector(".teambrowse-list");
-
-      function renderList() {
-        const q = searchInput.value.trim().toLowerCase();
-        const items = TeamDirectory.list()
-          .filter((t) => !q || t.tag.toLowerCase().includes(q) || t.name.toLowerCase().includes(q))
-          .sort((t1, t2) => t1.tag.localeCompare(t2.tag))
-          .slice(0, 200);
-        listEl.innerHTML = items.length
-          ? items.map((t) => `<button type="button" class="teambrowse-item" data-tag="${escapeHtml(t.tag)}">[${escapeHtml(t.tag)}] ${escapeHtml(t.name)}</button>`).join("")
-          : `<div class="teambrowse-empty">No teams match yet — keep comparing or browsing teams on nitrotype.com and this list grows.</div>`;
-      }
-
-      browseBtn.addEventListener("click", () => {
-        panel.hidden = !panel.hidden;
-        if (!panel.hidden) {
-          renderList();
-          searchInput.focus();
-        }
-      });
-      searchInput.addEventListener("input", renderList);
-      listEl.addEventListener("click", (e) => {
-        const btn = e.target.closest(".teambrowse-item");
-        if (!btn) return;
-        mainInput.value = btn.dataset.tag;
-        panel.hidden = true;
-      });
-      TeamDirectory.subscribe(() => {
-        if (!panel.hidden) renderList();
-      });
-    }
-    wireBrowse("a");
-    wireBrowse("b");
 
     // Bar + duel-score presentation borrowed from StarTrack's "Showdown"
     // comparator (the community leaderboard site startrack.org): every row
@@ -575,6 +575,7 @@
     });
 
     setMode("team");
+    setView("compare");
 
     return { open, close, toggle };
   }
@@ -680,12 +681,25 @@
     .finder-status { font-size: 12px; color: var(--nt-dim); }
     .finder-status.error { color: #ff6b63; }
 
-    .teambrowse { margin: 12px 0 0; padding: 14px; background: var(--nt-panel); border: 1px solid var(--nt-line); border-radius: 8px; display: flex; flex-direction: column; gap: 10px; }
-    .teambrowse-search { background: var(--nt-bg); border: 1px solid var(--nt-line); color: var(--nt-text); border-radius: 6px; padding: 8px 10px; font-size: 14px; font-family: inherit; }
-    .teambrowse-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
-    .teambrowse-item { text-align: left; background: var(--nt-bg); border: 1px solid transparent; color: var(--nt-text); border-radius: 6px; padding: 8px 10px; font-size: 13px; font-family: inherit; cursor: pointer; }
-    .teambrowse-item:hover { border-color: var(--nt-line); background: var(--nt-panel-raised); }
-    .teambrowse-empty { font-size: 12px; color: var(--nt-dim); padding: 6px 2px; line-height: 1.5; }
+    .view[hidden] { display: none; }
+
+    .teams-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+    .teams-search {
+      flex: 1; background: var(--nt-panel); border: 1px solid var(--nt-line); color: var(--nt-text);
+      border-radius: 8px; padding: 12px 14px; font-size: 15px; font-family: inherit;
+    }
+    .teams-search:focus { outline: 2px solid var(--nt-red); outline-offset: -1px; }
+    .teams-count { color: var(--nt-dim); font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .teams-list { display: flex; flex-direction: column; gap: 4px; }
+    .team-item {
+      display: flex; align-items: baseline; gap: 12px; text-align: left;
+      background: var(--nt-panel); border: 1px solid var(--nt-line); color: var(--nt-text);
+      border-radius: 8px; padding: 11px 14px; font-size: 14px; font-family: inherit; cursor: pointer;
+    }
+    .team-item:hover { border-color: var(--nt-gold); background: var(--nt-panel-raised); }
+    .team-item-tag { font-weight: 800; color: var(--nt-gold); flex-shrink: 0; }
+    .team-item-name { color: var(--nt-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .teams-empty { font-size: 13px; color: var(--nt-dim); padding: 20px 4px; line-height: 1.6; }
 
     .status { padding: 16px 0; color: var(--nt-dim); font-size: 15px; }
     .status.error { color: #ff6b63; }

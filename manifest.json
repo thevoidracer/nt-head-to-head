@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "NT Head-to-Head",
-  "version": "2.3.0",
-  "description": "Compare any two Nitro Type racers or teams, side by side, right from a tab inside Nitro Type itself.",
+  "name": "TypeTrack",
+  "version": "3.0.0",
+  "description": "Compare any two Nitro Type racers or teams side by side, and browse every team you've tracked, right from a tab inside Nitro Type itself.",
   "permissions": ["storage"],
   "action": {
-    "default_title": "NT Head-to-Head (open on nitrotype.com)"
+    "default_title": "TypeTrack (open on nitrotype.com)"
   },
   "background": {
     "service_worker": "background.js"

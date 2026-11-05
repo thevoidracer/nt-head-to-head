@@ -1,17 +1,20 @@
-# NT Head-to-Head
+# TypeTrack
 
-Compare any two Nitro Type racers or teams, side by side, right from a tab
-inside Nitro Type itself — as a Chrome extension.
+Compare any two Nitro Type racers or teams side by side, and browse every
+team you've tracked — right from a tab inside Nitro Type itself, as a
+Chrome extension.
 
 Idea and spec by Void Racer. Built with Claude Code.
 
 ## What it does
 
-Once installed, a **⚡ Head-to-Head** tab appears in Nitro Type's own nav
+Once installed, a **⚡ TypeTrack** tab appears in Nitro Type's own nav
 bar (next to Garage, Season, Shop, etc.) on every nitrotype.com page, and
 a red ⚡ button is fixed to the bottom-right corner of every page as a
-guaranteed-visible way in too. Click either one to open a full-page
-comparison view, styled to match Nitro Type's own navy/red/gold look.
+guaranteed-visible way in too. Click either one to open a full-page view,
+styled to match Nitro Type's own navy/red/gold look, with two tabs:
+
+### Compare
 
 - **Teams**: roster size, active %, this-week pace against the race
   requirement, and all-time/daily speed, accuracy, points, and
@@ -30,20 +33,27 @@ comparison view, styled to match Nitro Type's own navy/red/gold look.
 - Don't know someone's exact username? Click **Find by name** under
   either racer field, load a team's roster by tag, and pick them by their
   display name — their real username fills in automatically.
-- Don't know a team's exact tag either? Click **Browse teams** under
-  either team field to open a searchable list — type part of a tag or
-  name to filter, click a result to fill it in. Nitro Type doesn't
-  publish a full list of every team (its own in-game search needs a
-  login token this extension deliberately doesn't touch), so the list
-  starts from a curated set of active/notable teams and grows
-  permanently from there: every team you compare, look up, or simply
-  visit the page of on nitrotype.com gets added to your own local list
-  automatically.
 - Open the panel while on a team or racer page and side A auto-fills with
   whoever you're looking at.
-- The toolbar icon (no popup) also toggles the panel open/closed on the
-  active nitrotype.com tab, as a backup if the nav tab is ever hard to
-  find.
+
+### Teams
+
+A full, searchable list of every team this install knows about — the
+same idea as TypeTrack's own site-wide team filterer, instead of having
+to shuffle through Nitro Type's own team browser one page at a time.
+Type part of a tag or name to filter; click a team to send it straight
+into Compare as Team A.
+
+Nitro Type doesn't publish a full list of every team (its own in-game
+search needs a login token this extension deliberately doesn't touch),
+so the list starts from a curated set of active/notable teams and grows
+permanently from there: every team you compare, look up, or simply
+visit the page of on nitrotype.com gets added to your own local list
+automatically.
+
+The toolbar icon (no popup) also toggles the panel open/closed on the
+active nitrotype.com tab, as a backup if the nav tab is ever hard to
+find.
 
 ## Install (not on the Chrome Web Store — load it manually)
 
@@ -54,7 +64,7 @@ comparison view, styled to match Nitro Type's own navy/red/gold look.
 3. In Chrome, go to `chrome://extensions`.
 4. Turn on **Developer mode** (top right).
 5. Click **Load unpacked** and select the unzipped folder.
-6. Visit nitrotype.com — the ⚡ Head-to-Head tab appears in the nav bar.
+6. Visit nitrotype.com — the ⚡ TypeTrack tab appears in the nav bar.
 
 To update later: re-download, unzip over the old folder, then click the
 reload icon on the extension's card in `chrome://extensions`.
@@ -64,5 +74,5 @@ reload icon on the extension's card in `chrome://extensions`.
 Everything runs locally in your own browser. The extension only talks to
 `nitrotype.com` — nothing is sent anywhere else, and nothing is collected
 or stored beyond what Chrome's own extension storage does automatically
-(just the list of teams you've looked up, so autocomplete can suggest
-them next time).
+(just the list of teams you've looked up, so the Teams tab and
+autocomplete can suggest them next time).
