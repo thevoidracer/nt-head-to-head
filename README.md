@@ -106,6 +106,33 @@ more. Your own team (see auto-detection above) gets starred for you
 automatically the first time it's detected — unstar it any time and it
 stays unstarred.
 
+### More on-page widgets — on Nitro Type itself, not just the panel
+
+These show up directly on Nitro Type's own pages, the same way the
+comparison badges above do, once your team/racer is set:
+
+- **Your progress, on your own racer page**: a floating badge replaces
+  the usual "vs you" comparison badge when you're looking at your own
+  profile, showing how your races-played and avg speed have moved over
+  the last 7 days, trending up/down/steady. A background snapshot of
+  your stats is taken roughly once a day (even with no tab open) so
+  this has real history to show, not just today's number.
+- **Daily race goal + streak**: set an optional daily race goal from
+  the ⚙ settings popover. Hit it on a given day and your streak ticks
+  up; miss it and it resets. The streak shows both inside your
+  progress badge and as a small 🔥N indicator right on the fab button,
+  site-wide, so it's visible without opening TypeTrack at all.
+- **Roster compliance, on your own team page**: a floating badge
+  replaces the usual comparison badge when you're looking at your own
+  team's page, listing exactly which members are currently below the
+  team's race requirement (and by how much), instead of having to
+  cross-check the roster by hand.
+- **Rival tracking**: on any other racer's page, click **☆ Add rival**
+  on their comparison badge to track them (up to 5 at once — it turns
+  into **★ Rival**). Roughly every 30 minutes, the extension compares
+  your avg speed to theirs and fires a desktop notification the moment
+  the lead flips either way.
+
 ## Install (not on the Chrome Web Store — load it manually)
 
 1. Download this repo as a zip: [direct download

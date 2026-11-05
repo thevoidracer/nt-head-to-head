@@ -381,6 +381,111 @@
     return { has, list, toggle, subscribe, MAX_WATCHED };
   })();
 
+  // ---------------------------------------------------------------------
+  // Rival list — a short list of other racers, built from the "+ Rival"
+  // button on the on-page racer comparison badge (see RacerBadge below).
+  // Same split as the team watch list: this just owns the list,
+  // background.js's alarm is what actually re-checks each one against
+  // your own racer and fires a notification the moment the lead flips.
+  // ---------------------------------------------------------------------
+
+  const RivalList = (() => {
+    const MAX_RIVALS = 5;
+    let rivals = [];
+    const subscribers = [];
+
+    async function load() {
+      rivals = (await storageGet("ntcmp:rivals")) || [];
+      notify();
+    }
+    function notify() {
+      subscribers.forEach((fn) => fn(rivals));
+    }
+    function subscribe(fn) {
+      subscribers.push(fn);
+    }
+    function has(username) {
+      return rivals.some((r) => r.toLowerCase() === (username || "").toLowerCase());
+    }
+    function list() {
+      return rivals.slice();
+    }
+    async function toggle(username) {
+      const clean = (username || "").trim();
+      if (!clean) return;
+      const idx = rivals.findIndex((r) => r.toLowerCase() === clean.toLowerCase());
+      if (idx >= 0) {
+        rivals.splice(idx, 1);
+      } else {
+        if (rivals.length >= MAX_RIVALS) return;
+        rivals.push(clean);
+        chrome.runtime.sendMessage({ type: "ntcmp:rivalAdded", username: clean }).catch(() => {});
+      }
+      await storageSet({ "ntcmp:rivals": rivals });
+      notify();
+    }
+
+    load();
+    return { has, list, toggle, subscribe, MAX_RIVALS };
+  })();
+
+  // ---------------------------------------------------------------------
+  // Progress — a read-mostly view onto the daily snapshots background.js
+  // takes of your own racer (races/speed), plus the daily-race-goal and
+  // streak it derives from them. Owned by background.js (it's the one
+  // that runs reliably on a timer even with no tab open); this just reads
+  // the same storage keys back out for the on-page widgets to render.
+  // ---------------------------------------------------------------------
+
+  const Progress = (() => {
+    const subscribers = [];
+    function notify() {
+      subscribers.forEach((fn) => fn());
+    }
+    function subscribe(fn) {
+      subscribers.push(fn);
+    }
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "local") return;
+      if (changes["ntcmp:progressSnapshots"] || changes["ntcmp:streakCount"] || changes["ntcmp:dailyGoal"]) {
+        notify();
+      }
+    });
+
+    async function list() {
+      return (await storageGet("ntcmp:progressSnapshots")) || [];
+    }
+    async function getGoal() {
+      return (await storageGet("ntcmp:dailyGoal")) || 0;
+    }
+    async function getStreak() {
+      return (await storageGet("ntcmp:streakCount")) || 0;
+    }
+    async function setGoal(n) {
+      const goal = Math.max(0, Math.round(Number(n) || 0));
+      await storageSet({ "ntcmp:dailyGoal": goal });
+      notify();
+    }
+    // Delta between the latest snapshot and the oldest one within the
+    // last `days` days (falling back to the very first snapshot if
+    // there isn't `days` worth of history yet).
+    async function deltaSince(days) {
+      const snapshots = await list();
+      if (snapshots.length < 2) return null;
+      const cutoff = Date.now() - days * 86400000;
+      const base = snapshots.find((s) => s.ts >= cutoff) || snapshots[0];
+      const current = snapshots[snapshots.length - 1];
+      if (base === current) return null;
+      return {
+        races: (current.racesPlayed || 0) - (base.racesPlayed || 0),
+        speed: Math.round(((current.avgSpeed || 0) - (base.avgSpeed || 0)) * 10) / 10,
+        sinceDays: Math.max(1, Math.round((current.ts - base.ts) / 86400000)),
+      };
+    }
+
+    return { list, getGoal, getStreak, setGoal, deltaSince, subscribe };
+  })();
+
   // Manrope — the same clean, squared-but-flowing geometric sans StarTrack
   // itself uses. Self-hosted in the extension (one variable-weight file,
   // rather than pulled from Google Fonts at runtime) so it always loads
@@ -425,7 +530,13 @@
       font-family: var(--nt-font); box-shadow: 0 6px 20px rgba(0,0,0,0.5);
     }
     .badge:hover { border-color: var(--nt-gold); }
-    .badge-head { font-weight: 800; font-size: 14px; margin-bottom: 4px; }
+    .badge-rival-btn {
+      position: absolute; top: 10px; right: 10px; background: none; border: none;
+      color: var(--nt-dim); font-size: 10.5px; font-weight: 700; cursor: pointer; padding: 2px 4px;
+      font-family: var(--nt-font);
+    }
+    .badge-rival-btn:hover { color: var(--nt-gold); }
+    .badge-head { font-weight: 800; font-size: 14px; margin-bottom: 4px; padding-right: 56px; }
     .badge-verdict { color: var(--nt-gold); font-size: 12px; font-weight: 700; margin-bottom: 8px; }
     .badge-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--nt-dim); padding: 2px 0; }
     .badge-row b { color: var(--nt-text); font-weight: 700; }
@@ -568,7 +679,9 @@
       const diffTop = (theirs.highestSpeed ?? 0) - (mine.highestSpeed ?? 0);
       const diffRaces = (theirs.racesPlayed ?? 0) - (mine.racesPlayed ?? 0);
       const verdict = diffAvg > 0 ? "Faster than you on average" : diffAvg < 0 ? "Slower than you on average" : "Even with you on average";
+      const isRival = RivalList.has(theirs.username);
       badge.innerHTML = `
+        <button type="button" class="badge-rival-btn" id="rival-btn">${isRival ? "★ Rival" : "☆ Add rival"}</button>
         <div class="badge-head">${escBadge(theirs.displayName)} vs you</div>
         <div class="badge-verdict">${verdict}</div>
         <div class="badge-row">Avg speed <span><b>${theirs.avgSpeed ?? 0}</b> <span class="diff ${diffClass(diffAvg)}">${fmtDiff(diffAvg)}</span></span></div>
@@ -583,6 +696,11 @@
           panelApi.compareRacers(mine.username, theirs.username);
         }
       };
+      r.getElementById("rival-btn").onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        RivalList.toggle(theirs.username).then(() => showForUsername(username));
+      };
     }
 
     function hide() {
@@ -590,6 +708,132 @@
     }
 
     return { showForUsername, hide };
+  })();
+
+  // ---------------------------------------------------------------------
+  // Your-own-progress badge — shown instead of RacerBadge when the racer
+  // page you're looking at is your own. Reads the daily snapshots
+  // background.js has been quietly taking (see Progress above) and shows
+  // real deltas, since NT's own racer page no longer has any recent-form
+  // view at all.
+  // ---------------------------------------------------------------------
+
+  const ProgressBadge = (() => {
+    let host = null;
+    let root = null;
+
+    function ensureHost() {
+      if (host) return root;
+      host = document.createElement("div");
+      host.id = "ntcmp-progress-badge-host";
+      host.style.all = "initial";
+      document.body.appendChild(host);
+      root = host.attachShadow({ mode: "open" });
+      root.innerHTML = `<style>${FONT_FACE_CSS}${BADGE_CSS}</style><div class="badge" id="badge" hidden></div>`;
+      return root;
+    }
+
+    async function show() {
+      const r = ensureHost();
+      const badge = r.getElementById("badge");
+      const [delta, goal, streak] = await Promise.all([Progress.deltaSince(7), Progress.getGoal(), Progress.getStreak()]);
+      if (!delta && !goal) {
+        // Nothing recorded yet (first visit since this build, or no
+        // history at all) — stay out of the way rather than show an
+        // empty-looking card.
+        badge.hidden = true;
+        return;
+      }
+      const deltaLine = delta
+        ? `<div class="badge-row">Last ${delta.sinceDays}d <span><b>${fmtDiff(delta.races)}</b> races <span class="diff ${diffClass(delta.speed)}">${fmtDiff(delta.speed)}</span> wpm</span></div>`
+        : `<div class="badge-row">Tracking started today — check back tomorrow for a trend.</div>`;
+      const goalLine = goal
+        ? `<div class="badge-row">Daily goal <span><b>${goal}</b> races${streak > 0 ? ` · 🔥 ${streak}-day streak` : ""}</span></div>`
+        : "";
+      const verdict = !delta ? "Just started tracking" : delta.races > 0 ? "Trending up" : delta.races < 0 ? "Slower lately" : "Holding steady";
+      badge.innerHTML = `
+        <div class="badge-head">Your progress</div>
+        <div class="badge-verdict">${verdict}</div>
+        ${deltaLine}
+        ${goalLine}
+        <div class="badge-foot">Recorded automatically in the background</div>`;
+      badge.hidden = false;
+    }
+
+    function hide() {
+      if (root) root.getElementById("badge").hidden = true;
+    }
+
+    return { show, hide };
+  })();
+
+  // ---------------------------------------------------------------------
+  // Roster compliance badge — shown instead of TeamBadge when the team
+  // page you're looking at is your own. Flags members under the team's
+  // own min-race requirement, straight from the roster data NT.fetchTeam()
+  // already pulled in — the thing a captain actually checks before
+  // kicking someone.
+  // ---------------------------------------------------------------------
+
+  const RosterBadge = (() => {
+    let host = null;
+    let root = null;
+
+    function ensureHost() {
+      if (host) return root;
+      host = document.createElement("div");
+      host.id = "ntcmp-roster-badge-host";
+      host.style.all = "initial";
+      document.body.appendChild(host);
+      root = host.attachShadow({ mode: "open" });
+      root.innerHTML = `
+        <style>
+          ${FONT_FACE_CSS}${BADGE_CSS}
+          .roster-list { margin: 8px 0 0; padding: 0; list-style: none; max-height: 160px; overflow-y: auto; }
+          .roster-list li { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--nt-dim); padding: 2px 0; }
+          .roster-list b { color: var(--nt-text); }
+        </style>
+        <div class="badge" id="badge" hidden></div>`;
+      return root;
+    }
+
+    function show(team) {
+      const r = ensureHost();
+      const badge = r.getElementById("badge");
+      const minRaces = team.trend?.minRaces ?? team.info?.minRaces ?? 0;
+      const total = team.memberCount ?? team.members?.length ?? 0;
+      if (!minRaces) {
+        badge.hidden = true;
+        return;
+      }
+      const below = (team.members || [])
+        .filter((m) => (m.played || 0) < minRaces)
+        .sort((a, b) => (a.played || 0) - (b.played || 0));
+      if (!below.length) {
+        badge.innerHTML = `
+          <div class="badge-head">[${escBadge(team.tag)}] roster</div>
+          <div class="badge-verdict">Everyone's meeting the ${minRaces}-race requirement</div>
+          <div class="badge-foot">${total} members checked</div>`;
+        badge.hidden = false;
+        return;
+      }
+      const rows = below
+        .slice(0, 8)
+        .map((m) => `<li>${escBadge(m.displayName || m.username || "—")} <b>${m.played ?? 0}/${minRaces}</b></li>`)
+        .join("");
+      badge.innerHTML = `
+        <div class="badge-head">[${escBadge(team.tag)}] roster</div>
+        <div class="badge-verdict">${below.length} of ${total} below the ${minRaces}-race requirement</div>
+        <ul class="roster-list">${rows}</ul>
+        ${below.length > 8 ? `<div class="badge-foot">+${below.length - 8} more below requirement</div>` : ""}`;
+      badge.hidden = false;
+    }
+
+    function hide() {
+      if (root) root.getElementById("badge").hidden = true;
+    }
+
+    return { show, hide };
   })();
 
   // ---------------------------------------------------------------------
@@ -652,16 +896,46 @@
       const racerMatch = location.pathname.match(/^\/racer\/([^/?#]+)/i);
       if (teamMatch) {
         RacerBadge.hide();
-        TeamDirectory.captureFromPath(location.pathname).then((team) => {
-          if (team) TeamBadge.show(team);
-          else TeamBadge.hide();
+        ProgressBadge.hide();
+        TeamDirectory.captureFromPath(location.pathname).then(async (team) => {
+          if (!team) {
+            TeamBadge.hide();
+            RosterBadge.hide();
+            return;
+          }
+          // Wait for Settings to actually finish loading before deciding
+          // whether this is "my team" — otherwise a very fast first page
+          // load could momentarily read myTeam as empty and show the
+          // wrong (or no) badge.
+          await Settings.ready;
+          const { myTeam } = Settings.get();
+          if (myTeam && myTeam === team.tag) {
+            TeamBadge.hide();
+            RosterBadge.show(team);
+          } else {
+            RosterBadge.hide();
+            TeamBadge.show(team);
+          }
         });
       } else if (racerMatch) {
         TeamBadge.hide();
-        RacerBadge.showForUsername(decodeURIComponent(racerMatch[1]));
+        RosterBadge.hide();
+        const username = decodeURIComponent(racerMatch[1]);
+        Settings.ready.then(() => {
+          const { myRacer } = Settings.get();
+          if (myRacer && myRacer.toLowerCase() === username.toLowerCase()) {
+            RacerBadge.hide();
+            ProgressBadge.show();
+          } else {
+            ProgressBadge.hide();
+            RacerBadge.showForUsername(username);
+          }
+        });
       } else {
         TeamBadge.hide();
         RacerBadge.hide();
+        RosterBadge.hide();
+        ProgressBadge.hide();
       }
     }
   }
@@ -689,7 +963,7 @@
     root.innerHTML = `
       <style>${FONT_FACE_CSS}${PANEL_CSS}</style>
       <button id="fab" class="fab" aria-label="Open TypeTrack" title="TypeTrack — compare &amp; browse teams">
-        <span class="fab-bolt">⚡</span>TypeTrack<span class="fab-badge" id="fab-badge" hidden></span>
+        <span class="fab-bolt">⚡</span>TypeTrack<span class="fab-streak" id="fab-streak" hidden></span><span class="fab-badge" id="fab-badge" hidden></span>
       </button>
       <div class="backdrop" id="backdrop"></div>
       <div class="panel" id="panel">
@@ -713,6 +987,10 @@
             <label class="settings-field">
               <span>My racer username</span>
               <input type="text" id="settings-my-racer" placeholder="e.g. voidracer" autocomplete="off" spellcheck="false" />
+            </label>
+            <label class="settings-field">
+              <span>Daily race goal (optional)</span>
+              <input type="number" id="settings-daily-goal" min="0" placeholder="e.g. 50" autocomplete="off" />
             </label>
             <button type="button" class="settings-save" id="settings-save">Save</button>
           </div>
@@ -812,12 +1090,14 @@
     const els = {
       fab: root.getElementById("fab"),
       fabBadge: root.getElementById("fab-badge"),
+      fabStreak: root.getElementById("fab-streak"),
       backdrop: root.getElementById("backdrop"),
       panel: root.getElementById("panel"),
       gearBtn: root.getElementById("gear-btn"),
       settingsPop: root.getElementById("settings-pop"),
       settingsMyTeam: root.getElementById("settings-my-team"),
       settingsMyRacer: root.getElementById("settings-my-racer"),
+      settingsDailyGoal: root.getElementById("settings-daily-goal"),
       settingsSave: root.getElementById("settings-save"),
       closeBtn: root.getElementById("close-btn"),
       viewBtns: root.querySelectorAll(".view-btn"),
@@ -849,8 +1129,10 @@
 
     // Settings popover (gear icon) — "my team" / "my racer", feeding the
     // on-page comparison badges.
-    els.gearBtn.addEventListener("click", () => {
+    els.gearBtn.addEventListener("click", async () => {
+      const opening = els.settingsPop.hidden;
       els.settingsPop.hidden = !els.settingsPop.hidden;
+      if (opening) els.settingsDailyGoal.value = (await Progress.getGoal()) || "";
     });
     function fillSettingsInputs({ myTeam, myRacer }) {
       els.settingsMyTeam.value = myTeam || "";
@@ -861,8 +1143,19 @@
     els.settingsSave.addEventListener("click", async () => {
       await Settings.setMyTeam(els.settingsMyTeam.value);
       await Settings.setMyRacer(els.settingsMyRacer.value);
+      await Progress.setGoal(els.settingsDailyGoal.value);
       els.settingsPop.hidden = true;
     });
+
+    // Site-wide streak badge on the fab itself — not just inside the panel —
+    // so a streak stays visible without opening TypeTrack at all.
+    async function updateStreakBadge() {
+      const streak = await Progress.getStreak();
+      els.fabStreak.textContent = `🔥${streak}`;
+      els.fabStreak.hidden = !streak;
+    }
+    updateStreakBadge();
+    Progress.subscribe(updateStreakBadge);
 
     // Unseen-teams counter — a small badge on the fab showing how many
     // teams (local finds + shared-list syncs) have shown up since the
@@ -1310,6 +1603,9 @@
       display: inline-flex; align-items: center; justify-content: center;
       min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
       background: var(--nt-gold); color: #13223a; font-size: 11px; font-weight: 800;
+    }
+    .fab-streak {
+      display: inline-flex; align-items: center; font-size: 12px; font-weight: 800;
     }
 
     .backdrop {

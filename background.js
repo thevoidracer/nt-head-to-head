@@ -83,6 +83,118 @@ async function checkWatchedTeams({ notifyOnChange = true } = {}) {
   await storageSet({ "ntcmp:watchSnapshots": nextSnapshots });
 }
 
+// ---------------------------------------------------------------------
+// Your own progress snapshots + daily streak. Nitro Type's own racer page
+// dropped its season/daily breakdown a while back, so there's no "recent
+// form" anywhere on the real site anymore — this re-creates it by taking
+// one snapshot of your own racer's stats per calendar day (UTC) on this
+// same alarm, same reasoning as the team checks above: it has to live
+// here, not in the content script, so a day still gets recorded even if
+// no nitrotype.com tab happens to be open that day.
+// ---------------------------------------------------------------------
+
+function utcDateKey(ts) {
+  return new Date(ts).toISOString().slice(0, 10);
+}
+
+async function checkMyProgress() {
+  const stored = await storageGet(["ntcmp:myRacer", "ntcmp:progressSnapshots", "ntcmp:dailyGoal", "ntcmp:streakCount", "ntcmp:streakLastDate"]);
+  const myRacer = stored["ntcmp:myRacer"];
+  if (!myRacer) return;
+
+  let snapshots = stored["ntcmp:progressSnapshots"] || [];
+  const dailyGoal = stored["ntcmp:dailyGoal"] || 0;
+  let streakCount = stored["ntcmp:streakCount"] || 0;
+  let streakLastDate = stored["ntcmp:streakLastDate"] || null;
+
+  let racer;
+  try {
+    racer = await NT.fetchRacer(myRacer);
+  } catch (e) {
+    return; // flaky fetch or username changed — try again next check
+  }
+
+  const today = utcDateKey(Date.now());
+  const last = snapshots[snapshots.length - 1];
+  const beforeToday = last && utcDateKey(last.ts) !== today ? last : [...snapshots].reverse().find((s) => utcDateKey(s.ts) !== today);
+
+  if (last && utcDateKey(last.ts) === today) {
+    // Already have today's entry — just refresh it with the latest numbers.
+    last.racesPlayed = racer.racesPlayed;
+    last.avgSpeed = racer.avgSpeed;
+    last.highestSpeed = racer.highestSpeed;
+  } else {
+    snapshots.push({ ts: Date.now(), racesPlayed: racer.racesPlayed, avgSpeed: racer.avgSpeed, highestSpeed: racer.highestSpeed });
+  }
+  snapshots = snapshots.slice(-60); // ~60 days at one entry/day
+
+  // Credit (or break) today's streak once, against yesterday's baseline —
+  // approximate by design: it only measures races between recorded
+  // snapshots, so a day with no snapshot (extension never ran that day)
+  // is simply not measured rather than guessed at.
+  if (dailyGoal && beforeToday && streakLastDate !== today) {
+    const current = snapshots[snapshots.length - 1];
+    const delta = (current.racesPlayed || 0) - (beforeToday.racesPlayed || 0);
+    const yesterday = utcDateKey(Date.now() - 86400000);
+    streakCount = delta >= dailyGoal ? (streakLastDate === yesterday ? streakCount + 1 : 1) : 0;
+    streakLastDate = today;
+  }
+
+  await storageSet({
+    "ntcmp:progressSnapshots": snapshots,
+    "ntcmp:streakCount": streakCount,
+    "ntcmp:streakLastDate": streakLastDate,
+  });
+}
+
+// ---------------------------------------------------------------------
+// Rival tracking — a short list of other racers (built from the "+ Rival"
+// button on the on-page racer comparison badge) this alarm re-checks
+// against your own racer's current avg speed, firing a notification the
+// moment the lead between you and one of them flips either way.
+// ---------------------------------------------------------------------
+
+async function checkRivals(myRacerData) {
+  const stored = await storageGet(["ntcmp:rivals", "ntcmp:rivalSnapshots"]);
+  const rivals = stored["ntcmp:rivals"] || [];
+  if (!rivals.length) return;
+  const snapshots = stored["ntcmp:rivalSnapshots"] || {};
+  const nextSnapshots = { ...snapshots };
+
+  for (const username of rivals) {
+    try {
+      const theirs = await NT.fetchRacer(username);
+      const nowLeading = (myRacerData?.avgSpeed || 0) >= (theirs.avgSpeed || 0);
+      const prev = snapshots[username];
+      if (prev && prev.leading !== nowLeading) {
+        chrome.notifications.create(`ntcmp:rival:${username}:${Date.now()}`, {
+          type: "basic",
+          iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+          title: nowLeading ? `TypeTrack — You passed ${theirs.displayName}!` : `TypeTrack — ${theirs.displayName} passed you`,
+          message: `Avg speed: you ${myRacerData?.avgSpeed ?? "—"} wpm vs ${theirs.displayName} ${theirs.avgSpeed} wpm.`,
+        });
+      }
+      nextSnapshots[username] = { avgSpeed: theirs.avgSpeed, leading: nowLeading };
+    } catch (e) {
+      // Renamed or unreachable this round — keep the old snapshot.
+    }
+  }
+  await storageSet({ "ntcmp:rivalSnapshots": nextSnapshots });
+}
+
+async function checkMyRacerDrivenTasks() {
+  const { "ntcmp:myRacer": myRacer, "ntcmp:rivals": rivals } = await storageGet(["ntcmp:myRacer", "ntcmp:rivals"]);
+  await checkMyProgress();
+  if (myRacer && rivals && rivals.length) {
+    try {
+      const myRacerData = await NT.fetchRacer(myRacer);
+      await checkRivals(myRacerData);
+    } catch (e) {
+      // Can't compare without your own fresh stats this round — skip.
+    }
+  }
+}
+
 function ensureAlarm() {
   chrome.alarms.get(WATCH_ALARM, (existing) => {
     if (!existing) chrome.alarms.create(WATCH_ALARM, { periodInMinutes: 30 });
@@ -92,7 +204,9 @@ chrome.runtime.onInstalled.addListener(ensureAlarm);
 chrome.runtime.onStartup.addListener(ensureAlarm);
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === WATCH_ALARM) checkWatchedTeams();
+  if (alarm.name !== WATCH_ALARM) return;
+  checkWatchedTeams();
+  checkMyRacerDrivenTasks();
 });
 
 // A team just got starred in the Teams tab — grab its baseline snapshot
@@ -101,5 +215,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg && msg.type === "ntcmp:watchAdded" && msg.tag) {
     checkWatchedTeams({ notifyOnChange: false });
+  }
+  if (msg && msg.type === "ntcmp:rivalAdded") {
+    checkMyRacerDrivenTasks();
   }
 });
