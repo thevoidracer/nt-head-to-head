@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TypeTrack",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "description": "Compare any two Nitro Type racers or teams side by side, and browse every team you've tracked, right from a tab inside Nitro Type itself.",
   "permissions": ["storage"],
   "action": {

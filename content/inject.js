@@ -363,6 +363,33 @@
               </div>
               <input type="text" id="teams-search" class="teams-search" placeholder="Search teams…" autocomplete="off" spellcheck="false" />
             </div>
+            <div class="teams-filters">
+              <label class="teams-filter">
+                <span>Sort</span>
+                <select id="teams-sort">
+                  <option value="tag">Tag (A–Z)</option>
+                  <option value="members-desc">Most members</option>
+                  <option value="members-asc">Fewest members</option>
+                  <option value="formed-desc">Newest</option>
+                  <option value="formed-asc">Oldest</option>
+                  <option value="speed-asc">Lowest speed req</option>
+                  <option value="speed-desc">Highest speed req</option>
+                </select>
+              </label>
+              <label class="teams-filter">
+                <span>Max min speed</span>
+                <input type="number" id="teams-max-speed" min="0" placeholder="Any" />
+              </label>
+              <label class="teams-filter">
+                <span>Max min races</span>
+                <input type="number" id="teams-max-races" min="0" placeholder="Any" />
+              </label>
+              <label class="teams-filter">
+                <span>Min members</span>
+                <input type="number" id="teams-min-members" min="0" placeholder="Any" />
+              </label>
+              <button type="button" id="teams-filters-clear" class="teams-filters-clear">Clear filters</button>
+            </div>
             <div class="teams-grid" id="teams-list"></div>
           </div>
         </div>
@@ -392,6 +419,11 @@
       finderA: root.getElementById("finder-a"),
       finderB: root.getElementById("finder-b"),
       teamsSearch: root.getElementById("teams-search"),
+      teamsSort: root.getElementById("teams-sort"),
+      teamsMaxSpeed: root.getElementById("teams-max-speed"),
+      teamsMaxRaces: root.getElementById("teams-max-races"),
+      teamsMinMembers: root.getElementById("teams-min-members"),
+      teamsFiltersClear: root.getElementById("teams-filters-clear"),
       teamsList: root.getElementById("teams-list"),
       teamsCount: root.getElementById("teams-count"),
       knownTeamsList: root.getElementById("known-teams"),
@@ -454,13 +486,32 @@
       return new Date(ms).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
     }
 
+    const TEAM_SORTERS = {
+      tag: (a, b) => a.tag.localeCompare(b.tag),
+      "members-desc": (a, b) => (b.members ?? 0) - (a.members ?? 0),
+      "members-asc": (a, b) => (a.members ?? 0) - (b.members ?? 0),
+      "formed-desc": (a, b) => (b.formed ?? 0) - (a.formed ?? 0),
+      "formed-asc": (a, b) => (a.formed ?? 0) - (b.formed ?? 0),
+      "speed-asc": (a, b) => (a.minSpeed ?? 0) - (b.minSpeed ?? 0),
+      "speed-desc": (a, b) => (b.minSpeed ?? 0) - (a.minSpeed ?? 0),
+    };
+
     function renderTeamsList() {
       const q = els.teamsSearch.value.trim().toLowerCase();
+      const maxSpeed = els.teamsMaxSpeed.value === "" ? null : Number(els.teamsMaxSpeed.value);
+      const maxRaces = els.teamsMaxRaces.value === "" ? null : Number(els.teamsMaxRaces.value);
+      const minMembers = els.teamsMinMembers.value === "" ? null : Number(els.teamsMinMembers.value);
+      const sortBy = els.teamsSort.value;
+
       const all = TeamDirectory.list();
       const items = all
         .filter((t) => !q || t.tag.toLowerCase().includes(q) || t.name.toLowerCase().includes(q))
-        .sort((t1, t2) => t1.tag.localeCompare(t2.tag));
-      els.teamsCount.textContent = q ? `${items.length} of ${all.length} teams tracked` : `${all.length} teams tracked`;
+        .filter((t) => maxSpeed === null || (t.minSpeed ?? 0) <= maxSpeed)
+        .filter((t) => maxRaces === null || (t.minRaces ?? 0) <= maxRaces)
+        .filter((t) => minMembers === null || (t.members ?? 0) >= minMembers)
+        .sort(TEAM_SORTERS[sortBy] || TEAM_SORTERS.tag);
+      const filtered = q || maxSpeed !== null || maxRaces !== null || minMembers !== null;
+      els.teamsCount.textContent = filtered ? `${items.length} of ${all.length} teams tracked` : `${all.length} teams tracked`;
       els.teamsList.innerHTML = items.length
         ? items
             .map((t) => {
@@ -480,7 +531,18 @@
             .join("")
         : `<div class="teams-empty">No teams match yet — keep comparing or browsing teams on nitrotype.com and this list grows.</div>`;
     }
-    els.teamsSearch.addEventListener("input", renderTeamsList);
+    [els.teamsSearch, els.teamsMaxSpeed, els.teamsMaxRaces, els.teamsMinMembers].forEach((el) =>
+      el.addEventListener("input", renderTeamsList)
+    );
+    els.teamsSort.addEventListener("change", renderTeamsList);
+    els.teamsFiltersClear.addEventListener("click", () => {
+      els.teamsSearch.value = "";
+      els.teamsSort.value = "tag";
+      els.teamsMaxSpeed.value = "";
+      els.teamsMaxRaces.value = "";
+      els.teamsMinMembers.value = "";
+      renderTeamsList();
+    });
     TeamDirectory.subscribe(() => {
       if (!els.viewTeams.hidden) renderTeamsList();
     });
@@ -851,6 +913,21 @@
       border-radius: 8px; padding: 11px 14px; font-size: 14px; font-family: inherit;
     }
     .teams-search:focus { outline: 2px solid var(--nt-red); outline-offset: -1px; }
+    .teams-filters {
+      display: flex; align-items: end; gap: 14px; flex-wrap: wrap;
+      margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--nt-line);
+    }
+    .teams-filter { display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: var(--nt-dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .teams-filter select, .teams-filter input {
+      background: var(--nt-panel); border: 1px solid var(--nt-line); color: var(--nt-text);
+      border-radius: 7px; padding: 8px 10px; font-size: 13px; font-family: inherit; width: 128px;
+    }
+    .teams-filter select:focus, .teams-filter input:focus { outline: 2px solid var(--nt-red); outline-offset: -1px; }
+    .teams-filters-clear {
+      background: none; border: 1px solid var(--nt-line); color: var(--nt-dim);
+      border-radius: 7px; padding: 9px 14px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .teams-filters-clear:hover { color: var(--nt-text); border-color: var(--nt-text); }
     .teams-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
     .team-card {
       text-align: left; cursor: pointer; background: var(--nt-panel); border: 1px solid var(--nt-line);
