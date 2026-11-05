@@ -214,11 +214,18 @@
             // Tag may be renamed or disbanded since the seed list was
             // captured — just skip it, this isn't fatal to anything.
           }
+          // A small, steady gap between requests — this only ever runs
+          // once per install, so there's no rush, and spacing it out
+          // keeps it from tripping NT's own rate limiting (which could
+          // otherwise spill over into an unrelated Compare lookup
+          // happening around the same time).
+          await new Promise((resolve) => setTimeout(resolve, 250));
         }
       };
-      // A handful of workers at a time — fast enough to fill in over a
-      // few seconds, gentle enough not to look like hammering NT's API.
-      await Promise.all(Array.from({ length: 4 }, worker));
+      // Two workers at a time, staggered — gentle enough not to look like
+      // hammering NT's API, even though it now takes a bit longer to
+      // finish filling in the Teams tab on first install.
+      await Promise.all(Array.from({ length: 2 }, worker));
     }
 
     async function captureFromPath(pathname) {
