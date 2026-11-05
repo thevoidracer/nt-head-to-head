@@ -8,8 +8,10 @@ Idea and spec by Void Racer. Built with Claude Code.
 ## What it does
 
 Once installed, a **⚡ Head-to-Head** tab appears in Nitro Type's own nav
-bar (next to Garage, Season, Shop, etc.) on every nitrotype.com page.
-Click it to slide open the comparison panel.
+bar (next to Garage, Season, Shop, etc.) on every nitrotype.com page, and
+a red ⚡ button is fixed to the bottom-right corner of every page as a
+guaranteed-visible way in too. Click either one to open a full-page
+comparison view, styled to match Nitro Type's own navy/red/gold look.
 
 - **Teams**: roster size, active %, this-week pace against the race
   requirement, and all-time/daily speed, accuracy, and points — pulled

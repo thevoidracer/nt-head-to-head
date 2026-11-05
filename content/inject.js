@@ -67,7 +67,7 @@
       <div class="backdrop" id="backdrop"></div>
       <div class="panel" id="panel">
         <header class="head">
-          <span class="logo">⚡ Head-to-Head</span>
+          <span class="logo"><span class="logo-bolt">⚡</span>HEAD-TO-HEAD</span>
           <div class="head-right">
             <div class="mode-switch">
               <button class="mode-btn active" data-mode="team" type="button">Teams</button>
@@ -77,41 +77,43 @@
           </div>
         </header>
 
-        <form id="compare-form" class="inputs">
-          <label class="field">
-            <span class="field-label" id="label-a">Team A tag</span>
-            <input type="text" id="input-a" list="known-teams" autocomplete="off" spellcheck="false" />
-            <button type="button" class="find-link" id="find-a" hidden>Find by name</button>
-          </label>
-          <span class="vs">vs</span>
-          <label class="field">
-            <span class="field-label" id="label-b">Team B tag</span>
-            <input type="text" id="input-b" list="known-teams" autocomplete="off" spellcheck="false" />
-            <button type="button" class="find-link" id="find-b" hidden>Find by name</button>
-          </label>
-          <button type="submit" class="compare-btn">Compare</button>
-        </form>
-        <datalist id="known-teams"></datalist>
+        <div class="content">
+          <form id="compare-form" class="inputs">
+            <label class="field">
+              <span class="field-label" id="label-a">Team A tag</span>
+              <input type="text" id="input-a" list="known-teams" autocomplete="off" spellcheck="false" />
+              <button type="button" class="find-link" id="find-a" hidden>Find by name</button>
+            </label>
+            <span class="vs">VS</span>
+            <label class="field">
+              <span class="field-label" id="label-b">Team B tag</span>
+              <input type="text" id="input-b" list="known-teams" autocomplete="off" spellcheck="false" />
+              <button type="button" class="find-link" id="find-b" hidden>Find by name</button>
+            </label>
+            <button type="submit" class="compare-btn">Compare</button>
+          </form>
+          <datalist id="known-teams"></datalist>
 
-        <div id="finder-a" class="finder" hidden>
-          <div class="finder-row">
-            <input type="text" class="finder-team-input" list="known-teams" placeholder="Team tag, e.g. IMT" autocomplete="off" spellcheck="false" />
-            <button type="button" class="finder-load-btn">Load roster</button>
+          <div id="finder-a" class="finder" hidden>
+            <div class="finder-row">
+              <input type="text" class="finder-team-input" list="known-teams" placeholder="Team tag, e.g. IMT" autocomplete="off" spellcheck="false" />
+              <button type="button" class="finder-load-btn">Load roster</button>
+            </div>
+            <select class="finder-roster" hidden></select>
+            <div class="finder-status"></div>
           </div>
-          <select class="finder-roster" hidden></select>
-          <div class="finder-status"></div>
-        </div>
-        <div id="finder-b" class="finder" hidden>
-          <div class="finder-row">
-            <input type="text" class="finder-team-input" list="known-teams" placeholder="Team tag, e.g. IMT" autocomplete="off" spellcheck="false" />
-            <button type="button" class="finder-load-btn">Load roster</button>
+          <div id="finder-b" class="finder" hidden>
+            <div class="finder-row">
+              <input type="text" class="finder-team-input" list="known-teams" placeholder="Team tag, e.g. IMT" autocomplete="off" spellcheck="false" />
+              <button type="button" class="finder-load-btn">Load roster</button>
+            </div>
+            <select class="finder-roster" hidden></select>
+            <div class="finder-status"></div>
           </div>
-          <select class="finder-roster" hidden></select>
-          <div class="finder-status"></div>
-        </div>
 
-        <div id="status" class="status" hidden></div>
-        <div id="result" class="result" hidden></div>
+          <div id="status" class="status" hidden></div>
+          <div id="result" class="result" hidden></div>
+        </div>
       </div>`;
 
     return { host, root };
@@ -400,92 +402,124 @@
   const PANEL_CSS = `
     :host, * { box-sizing: border-box; }
     [hidden] { display: none !important; }
+
+    /* Palette pulled from Nitro Type's own site: deep navy backgrounds,
+       its signature red, and the gold it uses for Legend/trophy accents. */
+    :host {
+      --nt-bg: #0b1626;
+      --nt-panel: #13223a;
+      --nt-panel-raised: #1a2d4a;
+      --nt-line: #24395c;
+      --nt-text: #f0f4fa;
+      --nt-dim: #8fa3bf;
+      --nt-red: #e2231a;
+      --nt-red-dim: #3a1414;
+      --nt-gold: #f0c75e;
+      --nt-font: "Arial Narrow", "Segoe UI", Roboto, system-ui, sans-serif;
+    }
+
     .fab {
       position: fixed; right: 20px; bottom: 20px;
-      width: 48px; height: 48px; border-radius: 50%;
-      background: #ff8a1e; color: #1a1100; border: none;
-      font-size: 20px; cursor: pointer;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+      width: 52px; height: 52px; border-radius: 50%;
+      background: var(--nt-red); color: #fff; border: 2px solid #ff6b63;
+      font-size: 22px; cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
       z-index: 2147482999;
     }
-    .fab:hover { filter: brightness(1.08); transform: scale(1.05); }
+    .fab:hover { filter: brightness(1.1); transform: scale(1.05); }
+
     .backdrop {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.4);
-      opacity: 0; pointer-events: none; transition: opacity 0.15s ease;
+      position: fixed; inset: 0; background: rgba(4,9,18,0.7);
+      opacity: 0; pointer-events: none; transition: opacity 0.18s ease;
       z-index: 2147483000;
     }
     .backdrop.open { opacity: 1; pointer-events: auto; }
+
     .panel {
-      position: fixed; top: 0; right: 0; height: 100vh; width: 400px;
-      max-width: 92vw;
-      background: #15171c; color: #e7e9ee;
-      font-family: "Segoe UI", Roboto, system-ui, sans-serif; font-size: 13px;
-      box-shadow: -8px 0 24px rgba(0,0,0,0.4);
-      transform: translateX(100%); transition: transform 0.2s ease;
+      position: fixed; inset: 0;
+      background: var(--nt-bg); color: var(--nt-text);
+      font-family: var(--nt-font); font-size: 14px;
+      opacity: 0; transform: scale(0.98); transition: opacity 0.18s ease, transform 0.18s ease;
+      pointer-events: none;
       z-index: 2147483001;
       display: flex; flex-direction: column;
       overflow-y: auto;
     }
-    .panel.open { transform: translateX(0); }
+    .panel.open { opacity: 1; transform: scale(1); pointer-events: auto; }
 
-    :root { }
     .head {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 14px 10px; border-bottom: 1px solid #2a2e38; flex-shrink: 0;
+      padding: 18px 28px; border-bottom: 2px solid var(--nt-red);
+      background: var(--nt-panel); flex-shrink: 0;
+      position: sticky; top: 0; z-index: 2;
     }
-    .logo { font-weight: 700; font-size: 14px; }
-    .head-right { display: flex; align-items: center; gap: 8px; }
-    .mode-switch { display: flex; background: #1c1f27; border-radius: 7px; padding: 2px; border: 1px solid #2a2e38; }
-    .mode-btn { border: none; background: transparent; color: #8a8f9c; padding: 5px 10px; font-size: 12px; font-weight: 600; border-radius: 5px; cursor: pointer; }
-    .mode-btn.active { background: #4a3015; color: #ff8a1e; }
-    .close-btn { background: none; border: none; color: #8a8f9c; font-size: 16px; cursor: pointer; padding: 2px 6px; }
-    .close-btn:hover { color: #e7e9ee; }
+    .logo {
+      font-weight: 800; font-size: 20px; letter-spacing: 0.03em;
+      font-style: italic; color: var(--nt-text);
+    }
+    .logo-bolt { color: var(--nt-gold); margin-right: 6px; font-style: normal; }
+    .head-right { display: flex; align-items: center; gap: 14px; }
+    .mode-switch { display: flex; background: var(--nt-bg); border-radius: 8px; padding: 3px; border: 1px solid var(--nt-line); }
+    .mode-btn {
+      border: none; background: transparent; color: var(--nt-dim);
+      padding: 7px 16px; font-size: 13px; font-weight: 700; letter-spacing: 0.02em;
+      border-radius: 6px; cursor: pointer; font-family: inherit;
+    }
+    .mode-btn.active { background: var(--nt-red); color: #fff; }
+    .close-btn { background: none; border: none; color: var(--nt-dim); font-size: 20px; cursor: pointer; padding: 2px 8px; }
+    .close-btn:hover { color: var(--nt-text); }
 
-    .inputs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 8px; padding: 14px; }
-    .field { display: flex; flex-direction: column; gap: 4px; position: relative; }
-    .field-label { font-size: 11px; color: #8a8f9c; }
+    .content { width: 100%; max-width: 760px; margin: 0 auto; padding: 32px 24px 60px; flex: 1; }
+
+    .inputs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 16px; }
+    .field { display: flex; flex-direction: column; gap: 6px; position: relative; }
+    .field-label { font-size: 12px; color: var(--nt-dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
     .field input {
-      background: #1c1f27; border: 1px solid #2a2e38; color: #e7e9ee;
-      border-radius: 6px; padding: 7px 8px; font-size: 13px; width: 100%; font-family: inherit;
+      background: var(--nt-panel); border: 1px solid var(--nt-line); color: var(--nt-text);
+      border-radius: 8px; padding: 12px 14px; font-size: 16px; width: 100%; font-family: inherit;
     }
-    .field input:focus { outline: 2px solid #ff8a1e; outline-offset: -1px; }
-    .vs { color: #8a8f9c; font-size: 11px; font-weight: 700; padding-bottom: 9px; justify-self: center; }
+    .field input:focus { outline: 2px solid var(--nt-red); outline-offset: -1px; }
+    .vs { color: var(--nt-gold); font-size: 15px; font-weight: 800; font-style: italic; padding-bottom: 13px; justify-self: center; }
     .compare-btn {
-      grid-column: 1 / -1; margin-top: 4px; background: #ff8a1e; color: #1a1100;
-      border: none; border-radius: 7px; padding: 9px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+      grid-column: 1 / -1; margin-top: 10px; background: var(--nt-red); color: #fff;
+      border: none; border-radius: 8px; padding: 14px; font-size: 15px; font-weight: 800;
+      letter-spacing: 0.03em; cursor: pointer; font-family: inherit;
     }
-    .compare-btn:hover { filter: brightness(1.08); }
+    .compare-btn:hover { filter: brightness(1.12); }
     .compare-btn:disabled { opacity: 0.5; cursor: default; }
 
-    .find-link { align-self: flex-start; background: none; border: none; color: #ff8a1e; font-size: 11px; font-weight: 600; padding: 2px 0 0; cursor: pointer; font-family: inherit; }
+    .find-link { align-self: flex-start; background: none; border: none; color: var(--nt-gold); font-size: 12px; font-weight: 700; padding: 3px 0 0; cursor: pointer; font-family: inherit; }
     .find-link:hover { text-decoration: underline; }
 
-    .finder { margin: 0 14px 10px; padding: 10px; background: #1c1f27; border: 1px solid #2a2e38; border-radius: 7px; display: flex; flex-direction: column; gap: 8px; }
-    .finder-row { display: flex; gap: 6px; }
-    .finder-team-input { flex: 1; background: #15171c; border: 1px solid #2a2e38; color: #e7e9ee; border-radius: 6px; padding: 6px 8px; font-size: 12px; font-family: inherit; }
-    .finder-load-btn { background: #4a3015; color: #ff8a1e; border: 1px solid #2a2e38; border-radius: 6px; padding: 6px 10px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; font-family: inherit; }
-    .finder-load-btn:hover { filter: brightness(1.15); }
-    .finder-roster { background: #15171c; border: 1px solid #2a2e38; color: #e7e9ee; border-radius: 6px; padding: 6px 8px; font-size: 12px; font-family: inherit; }
-    .finder-status { font-size: 11px; color: #8a8f9c; }
-    .finder-status.error { color: #f87171; }
+    .finder { margin: 12px 0 0; padding: 14px; background: var(--nt-panel); border: 1px solid var(--nt-line); border-radius: 8px; display: flex; flex-direction: column; gap: 10px; }
+    .finder-row { display: flex; gap: 8px; }
+    .finder-team-input { flex: 1; background: var(--nt-bg); border: 1px solid var(--nt-line); color: var(--nt-text); border-radius: 6px; padding: 8px 10px; font-size: 14px; font-family: inherit; }
+    .finder-load-btn { background: var(--nt-red-dim); color: var(--nt-gold); border: 1px solid var(--nt-line); border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+    .finder-load-btn:hover { filter: brightness(1.2); }
+    .finder-roster { background: var(--nt-bg); border: 1px solid var(--nt-line); color: var(--nt-text); border-radius: 6px; padding: 8px 10px; font-size: 14px; font-family: inherit; width: 100%; }
+    .finder-status { font-size: 12px; color: var(--nt-dim); }
+    .finder-status.error { color: #ff6b63; }
 
-    .status { padding: 10px 14px; color: #8a8f9c; }
-    .status.error { color: #f87171; }
-    .result { padding: 0 14px 20px; }
-    .names { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; padding: 2px 0 10px; }
-    .name-cell { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; }
+    .status { padding: 16px 0; color: var(--nt-dim); font-size: 15px; }
+    .status.error { color: #ff6b63; }
+    .result { padding: 24px 0 0; }
+    .names { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; padding: 0 0 16px; }
+    .name-cell { font-weight: 800; font-size: 20px; overflow-wrap: anywhere; }
     .name-cell.a { text-align: left; }
     .name-cell.b { text-align: right; }
-    .names .vs-mid { color: #8a8f9c; font-size: 11px; align-self: center; }
-    .section-title { color: #8a8f9c; font-size: 11px; letter-spacing: 0.02em; margin: 12px 0 6px; border-top: 1px solid #2a2e38; padding-top: 10px; }
-    .stat-row { display: grid; grid-template-columns: 1fr 86px 1fr; align-items: center; gap: 8px; padding: 4px 0; }
-    .stat-val { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .names .vs-mid { color: var(--nt-gold); font-size: 13px; font-weight: 800; font-style: italic; }
+    .section-title {
+      color: var(--nt-gold); font-size: 12px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; margin: 22px 0 10px; border-top: 1px solid var(--nt-line); padding-top: 16px;
+    }
+    .stat-row { display: grid; grid-template-columns: 1fr 120px 1fr; align-items: center; gap: 12px; padding: 7px 0; background: var(--nt-panel); border-radius: 6px; margin-bottom: 2px; }
+    .stat-val { font-weight: 800; font-variant-numeric: tabular-nums; font-size: 15px; padding: 0 14px; }
     .stat-val.a { text-align: left; }
     .stat-val.b { text-align: right; }
-    .stat-val.win { color: #4ade80; }
-    .stat-label { text-align: center; color: #8a8f9c; font-size: 11px; }
-    .trend-note { font-size: 12px; color: #8a8f9c; line-height: 1.5; padding: 2px 0; }
-    .trend-note b { color: #e7e9ee; }
+    .stat-val.win { color: var(--nt-gold); }
+    .stat-label { text-align: center; color: var(--nt-dim); font-size: 12px; font-weight: 600; }
+    .trend-note { font-size: 13px; color: var(--nt-dim); line-height: 1.6; padding: 10px 14px; background: var(--nt-panel); border-radius: 6px; margin-top: 10px; }
+    .trend-note b { color: var(--nt-gold); }
   `;
 
   const { root } = buildPanel();
