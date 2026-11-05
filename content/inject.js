@@ -38,12 +38,30 @@
       notify();
     }
 
-    async function remember(tag, name) {
-      const clean = (tag || "").trim().toUpperCase();
+    // Accepts the full object NT.fetchTeam() resolves with — not just a
+    // tag/name pair — so the Teams tab can render real cards (captain,
+    // member count, formed date, requirements, team color) without a
+    // second fetch. Fields missing from a given snapshot (e.g. an older
+    // stored entry from before this existed, or a passive capture that
+    // only had the basics) fall back to whatever was already known.
+    async function remember(team) {
+      const clean = (team?.tag || "").trim().toUpperCase();
       if (!clean) return;
       const idx = teams.findIndex((t) => t.tag === clean);
-      if (idx >= 0) teams[idx] = { tag: clean, name: name || teams[idx].name };
-      else teams.unshift({ tag: clean, name: name || clean });
+      const existing = idx >= 0 ? teams[idx] : null;
+      const entry = {
+        tag: clean,
+        name: team.name || existing?.name || clean,
+        color: team.info?.tagColor || existing?.color || null,
+        captain: team.info?.displayName || team.info?.username || existing?.captain || null,
+        members: team.memberCount ?? existing?.members ?? null,
+        formed: team.info?.createdStamp ? team.info.createdStamp * 1000 : existing?.formed ?? null,
+        minRaces: team.trend?.minRaces ?? team.info?.minRaces ?? existing?.minRaces ?? 0,
+        minSpeed: team.info?.minSpeed ?? existing?.minSpeed ?? 0,
+        syncedAt: Date.now(),
+      };
+      if (idx >= 0) teams[idx] = entry;
+      else teams.unshift(entry);
       teams = teams.slice(0, 400);
       await storageSet({ "ntcmp:knownTeams": teams });
       notify();
@@ -71,7 +89,7 @@
           const tag = queue.shift();
           try {
             const team = await NT.fetchTeam(tag);
-            await remember(team.tag, team.name);
+            await remember(team);
           } catch (e) {
             // Tag may be renamed or disbanded since the seed list was
             // captured — just skip it, this isn't fatal to anything.
@@ -89,7 +107,7 @@
       const tag = decodeURIComponent(m[1]).toUpperCase();
       try {
         const team = await NT.fetchTeam(tag);
-        await remember(team.tag, team.name);
+        await remember(team);
       } catch (e) {
         // Not fatal — just don't add it.
       }
@@ -178,53 +196,58 @@
 
         <div class="content">
           <div id="view-compare" class="view">
-            <div class="mode-switch">
-              <button class="mode-btn active" data-mode="team" type="button">Teams</button>
-              <button class="mode-btn" data-mode="racer" type="button">Racers</button>
-            </div>
-            <form id="compare-form" class="inputs">
-              <label class="field">
-                <span class="field-label" id="label-a">Team A tag</span>
-                <input type="text" id="input-a" list="known-teams" autocomplete="off" spellcheck="false" />
-                <button type="button" class="find-link" id="find-a" hidden>Find by name</button>
-              </label>
-              <span class="vs">VS</span>
-              <label class="field">
-                <span class="field-label" id="label-b">Team B tag</span>
-                <input type="text" id="input-b" list="known-teams" autocomplete="off" spellcheck="false" />
-                <button type="button" class="find-link" id="find-b" hidden>Find by name</button>
-              </label>
-              <button type="submit" class="compare-btn">Compare</button>
-            </form>
-            <datalist id="known-teams"></datalist>
-
-            <div id="finder-a" class="finder" hidden>
-              <div class="finder-row">
-                <input type="text" class="finder-team-input" list="known-teams" placeholder="Team tag, e.g. IMT" autocomplete="off" spellcheck="false" />
-                <button type="button" class="finder-load-btn">Load roster</button>
+            <div class="compare-inner">
+              <div class="mode-switch">
+                <button class="mode-btn active" data-mode="team" type="button">Teams</button>
+                <button class="mode-btn" data-mode="racer" type="button">Racers</button>
               </div>
-              <select class="finder-roster" hidden></select>
-              <div class="finder-status"></div>
-            </div>
-            <div id="finder-b" class="finder" hidden>
-              <div class="finder-row">
-                <input type="text" class="finder-team-input" list="known-teams" placeholder="Team tag, e.g. IMT" autocomplete="off" spellcheck="false" />
-                <button type="button" class="finder-load-btn">Load roster</button>
-              </div>
-              <select class="finder-roster" hidden></select>
-              <div class="finder-status"></div>
-            </div>
+              <form id="compare-form" class="inputs">
+                <label class="field">
+                  <span class="field-label" id="label-a">Team A tag</span>
+                  <input type="text" id="input-a" list="known-teams" autocomplete="off" spellcheck="false" />
+                  <button type="button" class="find-link" id="find-a" hidden>Find by name</button>
+                </label>
+                <span class="vs">VS</span>
+                <label class="field">
+                  <span class="field-label" id="label-b">Team B tag</span>
+                  <input type="text" id="input-b" list="known-teams" autocomplete="off" spellcheck="false" />
+                  <button type="button" class="find-link" id="find-b" hidden>Find by name</button>
+                </label>
+                <button type="submit" class="compare-btn">Compare</button>
+              </form>
+              <datalist id="known-teams"></datalist>
 
-            <div id="status" class="status" hidden></div>
-            <div id="result" class="result" hidden></div>
+              <div id="finder-a" class="finder" hidden>
+                <div class="finder-row">
+                  <input type="text" class="finder-team-input" list="known-teams" placeholder="Team tag, e.g. IMT" autocomplete="off" spellcheck="false" />
+                  <button type="button" class="finder-load-btn">Load roster</button>
+                </div>
+                <select class="finder-roster" hidden></select>
+                <div class="finder-status"></div>
+              </div>
+              <div id="finder-b" class="finder" hidden>
+                <div class="finder-row">
+                  <input type="text" class="finder-team-input" list="known-teams" placeholder="Team tag, e.g. IMT" autocomplete="off" spellcheck="false" />
+                  <button type="button" class="finder-load-btn">Load roster</button>
+                </div>
+                <select class="finder-roster" hidden></select>
+                <div class="finder-status"></div>
+              </div>
+
+              <div id="status" class="status" hidden></div>
+              <div id="result" class="result" hidden></div>
+            </div>
           </div>
 
           <div id="view-teams" class="view" hidden>
             <div class="teams-head">
-              <input type="text" id="teams-search" class="teams-search" placeholder="Search every tracked team by tag or name…" autocomplete="off" spellcheck="false" />
-              <span class="teams-count" id="teams-count"></span>
+              <div class="teams-heading">
+                <h2 class="teams-title">Browse teams</h2>
+                <div class="teams-count" id="teams-count">0 teams tracked</div>
+              </div>
+              <input type="text" id="teams-search" class="teams-search" placeholder="Search teams…" autocomplete="off" spellcheck="false" />
             </div>
-            <div class="teams-list" id="teams-list"></div>
+            <div class="teams-grid" id="teams-list"></div>
           </div>
         </div>
       </div>`;
@@ -305,22 +328,57 @@
     // auto-grown, see TeamDirectory above), searchable, the same spirit as
     // TypeTrack's own site-wide team filterer. Clicking one jumps back to
     // Compare with it pre-filled as Team A, ready to pick an opponent.
+    function fmtFormed(ms) {
+      if (!ms) return "—";
+      return new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    }
+    function fmtSynced(ms) {
+      if (!ms) return "";
+      return new Date(ms).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
+    }
+
     function renderTeamsList() {
       const q = els.teamsSearch.value.trim().toLowerCase();
       const all = TeamDirectory.list();
       const items = all
         .filter((t) => !q || t.tag.toLowerCase().includes(q) || t.name.toLowerCase().includes(q))
         .sort((t1, t2) => t1.tag.localeCompare(t2.tag));
-      els.teamsCount.textContent = q ? `${items.length} of ${all.length} teams` : `${all.length} teams`;
+      els.teamsCount.textContent = q ? `${items.length} of ${all.length} teams tracked` : `${all.length} teams tracked`;
       els.teamsList.innerHTML = items.length
-        ? items.map((t) => `<button type="button" class="team-item" data-tag="${escapeHtml(t.tag)}"><span class="team-item-tag">${escapeHtml(t.tag)}</span><span class="team-item-name">${escapeHtml(t.name)}</span></button>`).join("")
+        ? items
+            .map((t) => {
+              const color = t.color ? `#${t.color}` : "var(--nt-gold)";
+              return `
+                <div class="team-card" data-tag="${escapeHtml(t.tag)}" style="--team-color:${color}" tabindex="0" role="button">
+                  <div class="team-card-head"><span class="team-card-tag" style="color:${color}">[${escapeHtml(t.tag)}]</span> <span class="team-card-name">${escapeHtml(t.name)}</span></div>
+                  <div class="team-card-row">Captain: <b>${escapeHtml(t.captain || "—")}</b></div>
+                  <div class="team-card-row">Members: <b>${t.members ?? "—"}</b> · Formed: <b>${fmtFormed(t.formed)}</b></div>
+                  <div class="team-card-row">Min: <b>${t.minRaces ?? 0} races / ${t.minSpeed ?? 0} wpm</b></div>
+                  <div class="team-card-foot">
+                    <a class="team-card-link" href="https://www.nitrotype.com/team/${encodeURIComponent(t.tag)}" target="_blank" rel="noopener">View roster</a>
+                    ${t.syncedAt ? `<span class="team-card-synced">Synced ${fmtSynced(t.syncedAt)}</span>` : ""}
+                  </div>
+                </div>`;
+            })
+            .join("")
         : `<div class="teams-empty">No teams match yet — keep comparing or browsing teams on nitrotype.com and this list grows.</div>`;
     }
     els.teamsSearch.addEventListener("input", renderTeamsList);
     els.teamsList.addEventListener("click", (e) => {
-      const btn = e.target.closest(".team-item");
-      if (!btn) return;
-      els.inputA.value = btn.dataset.tag;
+      if (e.target.closest(".team-card-link")) return; // let "View roster" open nitrotype.com normally
+      const card = e.target.closest(".team-card");
+      if (!card) return;
+      els.inputA.value = card.dataset.tag;
+      setMode("team");
+      setView("compare");
+      els.inputB.focus();
+    });
+    els.teamsList.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const card = e.target.closest(".team-card");
+      if (!card) return;
+      e.preventDefault();
+      els.inputA.value = card.dataset.tag;
       setMode("team");
       setView("compare");
       els.inputB.focus();
@@ -352,7 +410,7 @@
         loadBtn.disabled = true;
         try {
           const team = await NT.fetchTeam(tag);
-          await TeamDirectory.remember(team.tag, team.name);
+          await TeamDirectory.remember(team);
           const members = (team.members || []).slice().sort((m1, m2) => m1.displayName.localeCompare(m2.displayName));
           rosterSelect.innerHTML = members
             .map((m) => `<option value="${m.username}">${escapeHtml(m.displayName)} — ${escapeHtml(m.username)}</option>`)
@@ -532,8 +590,8 @@
         els.result.innerHTML = state.mode === "team" ? renderTeams(dataA, dataB) : renderRacers(dataA, dataB);
         els.result.hidden = false;
         if (state.mode === "team") {
-          TeamDirectory.remember(dataA.tag, dataA.name);
-          TeamDirectory.remember(dataB.tag, dataB.name);
+          TeamDirectory.remember(dataA);
+          TeamDirectory.remember(dataB);
         }
       } catch (err) {
         setStatus(err.message || "Something went wrong.", true);
@@ -650,7 +708,8 @@
     .close-btn { background: none; border: none; color: var(--nt-dim); font-size: 20px; cursor: pointer; padding: 2px 8px; }
     .close-btn:hover { color: var(--nt-text); }
 
-    .content { width: 100%; max-width: 760px; margin: 0 auto; padding: 32px 24px 60px; flex: 1; }
+    .content { width: 100%; max-width: 1180px; margin: 0 auto; padding: 32px 24px 60px; flex: 1; }
+    .compare-inner { max-width: 760px; margin: 0 auto; }
 
     .inputs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 16px; }
     .field { display: flex; flex-direction: column; gap: 6px; position: relative; }
@@ -683,23 +742,31 @@
 
     .view[hidden] { display: none; }
 
-    .teams-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+    .teams-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 24px; flex-wrap: wrap; }
+    .teams-title { font-size: 24px; font-weight: 800; margin: 0; font-style: italic; }
+    .teams-count { color: var(--nt-dim); font-size: 13px; margin-top: 4px; }
     .teams-search {
-      flex: 1; background: var(--nt-panel); border: 1px solid var(--nt-line); color: var(--nt-text);
-      border-radius: 8px; padding: 12px 14px; font-size: 15px; font-family: inherit;
+      width: 260px; max-width: 100%; background: var(--nt-panel); border: 1px solid var(--nt-line); color: var(--nt-text);
+      border-radius: 8px; padding: 11px 14px; font-size: 14px; font-family: inherit;
     }
     .teams-search:focus { outline: 2px solid var(--nt-red); outline-offset: -1px; }
-    .teams-count { color: var(--nt-dim); font-size: 12px; font-weight: 600; white-space: nowrap; }
-    .teams-list { display: flex; flex-direction: column; gap: 4px; }
-    .team-item {
-      display: flex; align-items: baseline; gap: 12px; text-align: left;
-      background: var(--nt-panel); border: 1px solid var(--nt-line); color: var(--nt-text);
-      border-radius: 8px; padding: 11px 14px; font-size: 14px; font-family: inherit; cursor: pointer;
+    .teams-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+    .team-card {
+      text-align: left; cursor: pointer; background: var(--nt-panel); border: 1px solid var(--nt-line);
+      border-left: 4px solid var(--team-color, var(--nt-gold)); border-radius: 8px; padding: 16px 16px 12px;
+      display: flex; flex-direction: column; gap: 5px;
     }
-    .team-item:hover { border-color: var(--nt-gold); background: var(--nt-panel-raised); }
-    .team-item-tag { font-weight: 800; color: var(--nt-gold); flex-shrink: 0; }
-    .team-item-name { color: var(--nt-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .teams-empty { font-size: 13px; color: var(--nt-dim); padding: 20px 4px; line-height: 1.6; }
+    .team-card:hover, .team-card:focus-visible { background: var(--nt-panel-raised); border-color: var(--nt-gold); outline: none; }
+    .team-card-head { font-size: 15px; margin-bottom: 2px; }
+    .team-card-tag { font-weight: 800; margin-right: 2px; }
+    .team-card-name { font-weight: 700; color: var(--nt-text); }
+    .team-card-row { font-size: 12.5px; color: var(--nt-dim); }
+    .team-card-row b { color: var(--nt-text); font-weight: 700; }
+    .team-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--nt-line); }
+    .team-card-link { color: var(--nt-gold); font-size: 12px; font-weight: 700; text-decoration: none; }
+    .team-card-link:hover { text-decoration: underline; }
+    .team-card-synced { font-size: 10.5px; color: var(--nt-dim); opacity: 0.75; white-space: nowrap; }
+    .teams-empty { grid-column: 1 / -1; font-size: 13px; color: var(--nt-dim); padding: 20px 4px; line-height: 1.6; }
 
     .status { padding: 16px 0; color: var(--nt-dim); font-size: 15px; }
     .status.error { color: #ff6b63; }

@@ -38,18 +38,22 @@ styled to match Nitro Type's own navy/red/gold look, with two tabs:
 
 ### Teams
 
-A full, searchable list of every team this install knows about — the
-same idea as TypeTrack's own site-wide team filterer, instead of having
-to shuffle through Nitro Type's own team browser one page at a time.
-Type part of a tag or name to filter; click a team to send it straight
-into Compare as Team A.
+A full, searchable grid of every team this install knows about — the
+same card-based "Browse teams" layout as TypeTrack's own site-wide team
+filterer, instead of having to shuffle through Nitro Type's own team
+browser one page at a time. Each card shows the team's tag and name
+(colored to match its real in-game tag color), captain, member count,
+formed date, and race/speed requirement, plus a **View roster** link
+out to its real nitrotype.com team page and when you last looked it
+up. Type part of a tag or name to filter; click a card to send that
+team straight into Compare as Team A.
 
 Nitro Type doesn't publish a full list of every team (its own in-game
 search needs a login token this extension deliberately doesn't touch),
-so the list starts from a curated set of active/notable teams and grows
-permanently from there: every team you compare, look up, or simply
-visit the page of on nitrotype.com gets added to your own local list
-automatically.
+so the grid starts from a curated set of active/notable teams and
+grows permanently from there, with fresh details each time: every team
+you compare, look up, or simply visit the page of on nitrotype.com
+gets added to (or refreshed in) your own local list automatically.
 
 The toolbar icon (no popup) also toggles the panel open/closed on the
 active nitrotype.com tab, as a backup if the nav tab is ever hard to
