@@ -486,6 +486,74 @@
     return { list, getGoal, getStreak, setGoal, deltaSince, subscribe };
   })();
 
+  // ---------------------------------------------------------------------
+  // Captain roster trends — read-only view of the day-over-day per-member
+  // snapshots background.js records for your own team. No alarm logic
+  // here; this just reads back what was written and diffs it.
+  // ---------------------------------------------------------------------
+
+  const RosterTrend = (() => {
+    async function forTeam(tag) {
+      const all = (await storageGet("ntcmp:rosterSnapshots")) || {};
+      return all[tag] || null;
+    }
+    // delta: races played since the last recorded day (null if no prior
+    // snapshot exists yet, e.g. the very first day this team was tracked).
+    function deltaFor(snapshot, username) {
+      if (!snapshot || !snapshot.prevMembers) return null;
+      const prev = snapshot.prevMembers[username];
+      const cur = snapshot.curMembers?.[username];
+      if (!prev || !cur) return null;
+      return cur.played - prev.played;
+    }
+    return { forTeam, deltaFor };
+  })();
+
+  // ---------------------------------------------------------------------
+  // Compare history — a lightweight log of past Compare results, so "how
+  // did this matchup look a month ago" is answerable without re-running
+  // it. Stores a trimmed snapshot (team rosters drop the member list) to
+  // keep local storage small; capped at the most recent 20.
+  // ---------------------------------------------------------------------
+
+  const CompareHistory = (() => {
+    const MAX_ENTRIES = 20;
+    let entries = [];
+    const subscribers = [];
+    async function load() {
+      entries = (await storageGet("ntcmp:compareHistory")) || [];
+      notify();
+    }
+    function notify() {
+      subscribers.forEach((fn) => fn(entries));
+    }
+    function subscribe(fn) {
+      subscribers.push(fn);
+    }
+    function trim(mode, data) {
+      if (mode === "team") {
+        const { members, ...rest } = data;
+        return rest;
+      }
+      return { ...data };
+    }
+    async function add(mode, a, b) {
+      entries = [{ ts: Date.now(), mode, a: trim(mode, a), b: trim(mode, b) }, ...entries].slice(0, MAX_ENTRIES);
+      await storageSet({ "ntcmp:compareHistory": entries });
+      notify();
+    }
+    function list() {
+      return entries.slice();
+    }
+    async function clear() {
+      entries = [];
+      await storageSet({ "ntcmp:compareHistory": entries });
+      notify();
+    }
+    load();
+    return { add, list, clear, subscribe };
+  })();
+
   // Manrope — the same clean, squared-but-flowing geometric sans StarTrack
   // itself uses. Self-hosted in the extension (one variable-weight file,
   // rather than pulled from Google Fonts at runtime) so it always loads
@@ -512,6 +580,31 @@
   }
   function diffClass(n) {
     return n > 0 ? "pos" : n < 0 ? "neg" : "zero";
+  }
+
+  // Tiny inline-SVG sparkline — no chart library needed for a badge-sized
+  // trend line. Values plot left-to-right, oldest to newest.
+  function sparklineSvg(values, { width = 220, height = 46, color = "var(--nt-gold)" } = {}) {
+    if (!values || values.length < 2) return "";
+    const pad = 3;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const span = max - min || 1;
+    const stepX = (width - pad * 2) / (values.length - 1);
+    const points = values
+      .map((v, i) => {
+        const x = pad + i * stepX;
+        const y = pad + (1 - (v - min) / span) * (height - pad * 2);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ");
+    const lastX = pad + (values.length - 1) * stepX;
+    const lastY = pad + (1 - (values[values.length - 1] - min) / span) * (height - pad * 2);
+    return `
+      <svg class="spark" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" preserveAspectRatio="none">
+        <polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+        <circle cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="2.5" fill="${color}" />
+      </svg>`;
   }
 
   const BADGE_CSS = `
@@ -544,6 +637,9 @@
     .badge-row .diff.neg { color: #ff7a6e; }
     .badge-row .diff.zero { color: var(--nt-dim); }
     .badge-foot { margin-top: 8px; font-size: 11px; color: var(--nt-gold); font-weight: 700; }
+    .badge-chart { margin-top: 8px; }
+    .badge-chart .spark { display: block; width: 100%; height: 40px; }
+    .badge-chart-label { font-size: 10px; color: var(--nt-dim); text-align: center; margin-top: 2px; }
   `;
 
   // ---------------------------------------------------------------------
@@ -736,7 +832,12 @@
     async function show() {
       const r = ensureHost();
       const badge = r.getElementById("badge");
-      const [delta, goal, streak] = await Promise.all([Progress.deltaSince(7), Progress.getGoal(), Progress.getStreak()]);
+      const [delta, goal, streak, snapshots] = await Promise.all([
+        Progress.deltaSince(7),
+        Progress.getGoal(),
+        Progress.getStreak(),
+        Progress.list(),
+      ]);
       if (!delta && !goal) {
         // Nothing recorded yet (first visit since this build, or no
         // history at all) — stay out of the way rather than show an
@@ -751,11 +852,15 @@
         ? `<div class="badge-row">Daily goal <span><b>${goal}</b> races${streak > 0 ? ` · 🔥 ${streak}-day streak` : ""}</span></div>`
         : "";
       const verdict = !delta ? "Just started tracking" : delta.races > 0 ? "Trending up" : delta.races < 0 ? "Slower lately" : "Holding steady";
+      const speeds = (snapshots || []).slice(-21).map((s) => s.avgSpeed || 0);
+      const chart = sparklineSvg(speeds);
+      const chartBlock = chart ? `<div class="badge-chart">${chart}<div class="badge-chart-label">Avg speed, last ${speeds.length} snapshots</div></div>` : "";
       badge.innerHTML = `
         <div class="badge-head">Your progress</div>
         <div class="badge-verdict">${verdict}</div>
         ${deltaLine}
         ${goalLine}
+        ${chartBlock}
         <div class="badge-foot">Recorded automatically in the background</div>`;
       badge.hidden = false;
     }
@@ -1018,6 +1123,8 @@
                 <button type="submit" class="compare-btn">Compare</button>
               </form>
               <datalist id="known-teams"></datalist>
+              <button type="button" class="history-toggle" id="history-toggle">Recent comparisons</button>
+              <div id="compare-history" class="compare-history" hidden></div>
 
               <div id="finder-a" class="finder" hidden>
                 <div class="finder-row">
@@ -1047,8 +1154,12 @@
                 <h2 class="teams-title">Browse teams</h2>
                 <div class="teams-count" id="teams-count">0 teams tracked</div>
               </div>
-              <input type="text" id="teams-search" class="teams-search" placeholder="Search teams…" autocomplete="off" spellcheck="false" />
+              <div class="teams-head-actions">
+                <input type="text" id="teams-search" class="teams-search" placeholder="Search teams…" autocomplete="off" spellcheck="false" />
+                <button type="button" id="team-finder-btn" class="team-finder-btn" title="Rank tracked teams against your own avg speed">Find teams for me</button>
+              </div>
             </div>
+            <div id="team-finder-note" class="team-finder-note" hidden></div>
             <div class="teams-filters">
               <label class="teams-filter">
                 <span>Sort</span>
@@ -1077,6 +1188,13 @@
               <button type="button" id="teams-filters-clear" class="teams-filters-clear">Clear filters</button>
             </div>
             <div class="teams-grid" id="teams-list"></div>
+          </div>
+
+          <div id="view-team-detail" class="view" hidden>
+            <button type="button" class="team-detail-back" id="team-detail-back">← Back to teams</button>
+            <div id="team-detail-body" class="team-detail-body">
+              <div class="teams-empty">Loading roster…</div>
+            </div>
           </div>
         </div>
       </div>`;
@@ -1113,15 +1231,22 @@
       finderA: root.getElementById("finder-a"),
       finderB: root.getElementById("finder-b"),
       teamsSearch: root.getElementById("teams-search"),
+      teamFinderBtn: root.getElementById("team-finder-btn"),
+      teamFinderNote: root.getElementById("team-finder-note"),
       teamsSort: root.getElementById("teams-sort"),
       teamsMaxSpeed: root.getElementById("teams-max-speed"),
       teamsMaxRaces: root.getElementById("teams-max-races"),
       teamsMinMembers: root.getElementById("teams-min-members"),
       teamsFiltersClear: root.getElementById("teams-filters-clear"),
       teamsList: root.getElementById("teams-list"),
+      viewTeamDetail: root.getElementById("view-team-detail"),
+      teamDetailBack: root.getElementById("team-detail-back"),
+      teamDetailBody: root.getElementById("team-detail-body"),
       teamsCount: root.getElementById("teams-count"),
       knownTeamsList: root.getElementById("known-teams"),
       form: root.getElementById("compare-form"),
+      historyToggle: root.getElementById("history-toggle"),
+      compareHistory: root.getElementById("compare-history"),
       btn: root.querySelector(".compare-btn"),
       status: root.getElementById("status"),
       result: root.getElementById("result"),
@@ -1197,9 +1322,13 @@
     els.modeBtns.forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
 
     function setView(view) {
-      els.viewBtns.forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+      // "team-detail" isn't one of the nav tabs — it's reached by clicking a
+      // team card — so it keeps the Teams tab looking active rather than
+      // deactivating both.
+      els.viewBtns.forEach((b) => b.classList.toggle("active", b.dataset.view === view || (view === "team-detail" && b.dataset.view === "teams")));
       els.viewCompare.hidden = view !== "compare";
       els.viewTeams.hidden = view !== "teams";
+      els.viewTeamDetail.hidden = view !== "team-detail";
       if (view === "teams") {
         renderTeamsList();
         els.teamsSearch.focus();
@@ -1207,6 +1336,96 @@
       }
     }
     els.viewBtns.forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
+
+    // In-panel team detail — click a team card in the Teams tab to see its
+    // roster right here, instead of leaving to open nitrotype.com's own team
+    // page in a new tab. The real page is still one click away via the
+    // "Open on Nitro Type" link inside the detail view.
+    async function openTeamDetail(tag) {
+      setView("team-detail");
+      els.teamDetailBody.innerHTML = `<div class="teams-empty">Loading [${escapeHtml(tag)}]'s roster…</div>`;
+      let team;
+      try {
+        team = await NT.fetchTeam(tag);
+      } catch (err) {
+        els.teamDetailBody.innerHTML = `<div class="teams-empty">Couldn't load [${escapeHtml(tag)}]: ${escapeHtml(err.message || "lookup failed")}</div>`;
+        return;
+      }
+      TeamDirectory.remember(team).catch(() => {});
+      const minRaces = team.trend?.minRaces ?? team.info?.minRaces ?? 0;
+      const minSpeed = team.info?.minSpeed ?? 0;
+      await Settings.ready;
+      const isMyTeam = Settings.get().myTeam === team.tag;
+      const rosterSnapshot = isMyTeam ? await RosterTrend.forTeam(team.tag) : null;
+      const weekStart = team.trend?.weekStart;
+      const weekFraction = weekStart ? Math.min(1, Math.max(0.02, (Date.now() - weekStart) / (7 * 86400000))) : null;
+      const members = (team.members || [])
+        .slice()
+        .sort((a, b) => (b.played || 0) - (a.played || 0));
+      const rows = members
+        .map((m) => {
+          const name = m.displayName || m.username || "—";
+          const compliant = !minRaces || (m.played || 0) >= minRaces;
+          if (!rosterSnapshot) {
+            return `
+              <tr class="${compliant ? "" : "team-detail-row-short"}">
+                <td>${escapeHtml(name)}</td>
+                <td>${m.played ?? 0}${minRaces ? ` / ${minRaces}` : ""}</td>
+                <td>${compliant ? "✓" : "Behind"}</td>
+              </tr>`;
+          }
+          // Captain view: extra trend + projection columns, available only
+          // for your own team since that's the only roster background.js
+          // keeps a day-over-day snapshot history for.
+          const delta = RosterTrend.deltaFor(rosterSnapshot, m.username);
+          const trendLabel = delta === null ? "—" : delta > 0 ? `+${delta} today` : delta < 0 ? `${delta} today` : "No change";
+          const trendClass = delta === null ? "" : delta > 0 ? "team-detail-trend-up" : delta < 0 ? "team-detail-trend-down" : "";
+          const projected = minRaces && weekFraction ? Math.round((m.played || 0) / weekFraction) : null;
+          const projectedLabel = projected === null ? "—" : `~${projected}${minRaces ? (projected >= minRaces ? " ✓" : " ✗") : ""}`;
+          return `
+            <tr class="${compliant ? "" : "team-detail-row-short"}">
+              <td>${escapeHtml(name)}</td>
+              <td>${m.played ?? 0}${minRaces ? ` / ${minRaces}` : ""}</td>
+              <td class="${trendClass}">${trendLabel}</td>
+              <td>${projectedLabel}</td>
+            </tr>`;
+        })
+        .join("");
+      const inactive = members
+        .filter((m) => m.lastActivity)
+        .slice()
+        .sort((a, b) => (a.lastActivity || 0) - (b.lastActivity || 0))[0];
+      const inactiveDays = inactive ? Math.floor((Date.now() / 1000 - inactive.lastActivity) / 86400) : null;
+      const captainNote = rosterSnapshot
+        ? `<div class="team-detail-stats">
+             ${rosterSnapshot.prevDate ? "" : `<div>Trend data starts tomorrow — this is day one of tracking.</div>`}
+             ${inactive ? `<div>Quietest member: <b>${escapeHtml(inactive.displayName || inactive.username)}</b> (${inactiveDays}d since last race)</div>` : ""}
+           </div>`
+        : "";
+      const watching = WatchList.has(team.tag);
+      els.teamDetailBody.innerHTML = `
+        <div class="team-detail-head">
+          <div>
+            <span class="team-detail-tag" style="color:${team.info?.tagColorPrimary ? "#" + team.info.tagColorPrimary : "var(--nt-gold)"}">[${escapeHtml(team.tag)}]</span>
+            <span class="team-detail-name">${escapeHtml(team.name)}</span>
+          </div>
+          <button type="button" class="team-card-watch${watching ? " active" : ""}" id="team-detail-watch" title="${watching ? "Stop watching for changes" : "Watch for changes"}">${watching ? "★" : "☆"}</button>
+        </div>
+        <div class="team-detail-stats">
+          <div>Members: <b>${team.memberCount}</b></div>
+          <div>Min: <b>${minRaces} races / ${minSpeed} wpm</b></div>
+          <div>Active (3d): <b>${team.trend?.activeRecentlyCount ?? "—"}</b></div>
+        </div>
+        ${captainNote}
+        <table class="team-detail-table">
+          <thead><tr><th>Racer</th><th>Races</th>${rosterSnapshot ? "<th>Trend</th><th>Proj. this week</th>" : "<th>Status</th>"}</tr></thead>
+          <tbody>${rows || `<tr><td colspan="${rosterSnapshot ? 4 : 3}">No roster data</td></tr>`}</tbody>
+        </table>
+        <a class="team-detail-external" href="https://www.nitrotype.com/team/${encodeURIComponent(team.tag)}" target="_blank" rel="noopener">Open on Nitro Type ↗</a>`;
+      const watchBtn = els.teamDetailBody.querySelector("#team-detail-watch");
+      if (watchBtn) watchBtn.addEventListener("click", () => WatchList.toggle(team.tag).then(() => openTeamDetail(team.tag)));
+    }
+    els.teamDetailBack.addEventListener("click", () => setView("teams"));
 
     // Full "Teams" tab — every team this install knows about (seeded +
     // auto-grown, see TeamDirectory above), searchable, the same spirit as
@@ -1257,17 +1476,17 @@
               const color = t.color ? `#${t.color}` : "var(--nt-gold)";
               const watching = WatchList.has(t.tag);
               return `
-                <a class="team-card" href="https://www.nitrotype.com/team/${encodeURIComponent(t.tag)}" target="_blank" rel="noopener" data-tag="${escapeHtml(t.tag)}" style="--team-color:${color}">
+                <div class="team-card" data-tag="${escapeHtml(t.tag)}" style="--team-color:${color}" tabindex="0" role="button">
                   <button type="button" class="team-card-watch${watching ? " active" : ""}" data-tag="${escapeHtml(t.tag)}" title="${watching ? "Stop watching for changes" : "Watch for changes (captain, requirements, member swings)"}">${watching ? "★" : "☆"}</button>
                   <div class="team-card-head"><span class="team-card-tag" style="color:${color}">[${escapeHtml(t.tag)}]</span> <span class="team-card-name">${escapeHtml(t.name)}</span></div>
                   <div class="team-card-row">Captain: <b>${escapeHtml(t.captain || "—")}</b></div>
                   <div class="team-card-row">Members: <b>${t.members ?? "—"}</b> · Formed: <b>${fmtFormed(t.formed)}</b></div>
                   <div class="team-card-row">Min: <b>${t.minRaces ?? 0} races / ${t.minSpeed ?? 0} wpm</b></div>
                   <div class="team-card-foot">
-                    <span class="team-card-link">View on Nitro Type</span>
+                    <span class="team-card-link">View roster</span>
                     ${t.syncedAt ? `<span class="team-card-synced">Synced ${fmtSynced(t.syncedAt)}</span>` : ""}
                   </div>
-                </a>`;
+                </div>`;
             })
             .join("")
         : `<div class="teams-empty">No teams match yet — keep comparing or browsing teams on nitrotype.com and this list grows.</div>`;
@@ -1279,11 +1498,22 @@
     // Event delegation: the star buttons get wiped and recreated on every
     // render, so listen on the stable grid container instead of each card.
     els.teamsList.addEventListener("click", (e) => {
-      const btn = e.target.closest(".team-card-watch");
-      if (!btn) return;
+      const watchBtn = e.target.closest(".team-card-watch");
+      if (watchBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        WatchList.toggle(watchBtn.dataset.tag);
+        return;
+      }
+      const card = e.target.closest(".team-card");
+      if (card) openTeamDetail(card.dataset.tag);
+    });
+    els.teamsList.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const card = e.target.closest(".team-card");
+      if (!card) return;
       e.preventDefault();
-      e.stopPropagation();
-      WatchList.toggle(btn.dataset.tag);
+      openTeamDetail(card.dataset.tag);
     });
     WatchList.subscribe(() => {
       if (!els.viewTeams.hidden) renderTeamsList();
@@ -1294,7 +1524,38 @@
       els.teamsMaxSpeed.value = "";
       els.teamsMaxRaces.value = "";
       els.teamsMinMembers.value = "";
+      els.teamFinderNote.hidden = true;
       renderTeamsList();
+    });
+
+    // Team finder — reverse the usual comparison: given your own avg
+    // speed, which tracked teams have you already clearing their speed
+    // requirement? Reuses the existing "Max min speed" filter plumbing
+    // rather than building a second results view.
+    els.teamFinderBtn.addEventListener("click", async () => {
+      await Settings.ready;
+      const { myRacer } = Settings.get();
+      if (!myRacer) {
+        els.teamFinderNote.hidden = false;
+        els.teamFinderNote.textContent = "Set \"My racer username\" in ⚙ settings first, so there's a speed to match teams against.";
+        return;
+      }
+      els.teamFinderBtn.disabled = true;
+      els.teamFinderBtn.textContent = "Finding…";
+      try {
+        const racer = await NT.fetchRacer(myRacer);
+        els.teamsMaxSpeed.value = Math.floor(racer.avgSpeed || 0);
+        els.teamsSort.value = "speed-desc";
+        renderTeamsList();
+        els.teamFinderNote.hidden = false;
+        els.teamFinderNote.textContent = `Showing tracked teams you'd already clear the speed requirement for (your avg: ${racer.avgSpeed} wpm), toughest first. Meeting a team's race requirement is still up to how much you play.`;
+      } catch (err) {
+        els.teamFinderNote.hidden = false;
+        els.teamFinderNote.textContent = err.message || "Couldn't look up your racer stats.";
+      } finally {
+        els.teamFinderBtn.disabled = false;
+        els.teamFinderBtn.textContent = "Find teams for me";
+      }
     });
     TeamDirectory.subscribe(() => {
       if (!els.viewTeams.hidden) renderTeamsList();
@@ -1506,11 +1767,66 @@
           TeamDirectory.remember(dataA);
           TeamDirectory.remember(dataB);
         }
+        CompareHistory.add(state.mode, dataA, dataB);
       } catch (err) {
         setStatus(err.message || "Something went wrong.", true);
       } finally {
         els.btn.disabled = false;
       }
+    });
+
+    function fmtHistoryWhen(ts) {
+      const mins = Math.round((Date.now() - ts) / 60000);
+      if (mins < 1) return "just now";
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = Math.round(mins / 60);
+      if (hrs < 24) return `${hrs}h ago`;
+      return `${Math.round(hrs / 24)}d ago`;
+    }
+    function historyLabel(mode, side) {
+      return mode === "team" ? `[${side.tag}]` : side.displayName || side.username;
+    }
+    function renderCompareHistory() {
+      const items = CompareHistory.list();
+      els.compareHistory.innerHTML = items.length
+        ? `<button type="button" class="history-clear" id="history-clear">Clear history</button>` +
+          items
+            .map(
+              (entry, i) => `
+              <button type="button" class="history-entry" data-i="${i}">
+                <span>${historyLabel(entry.mode, entry.a)} <span class="history-vs">vs</span> ${historyLabel(entry.mode, entry.b)}</span>
+                <span class="history-when">${fmtHistoryWhen(entry.ts)}</span>
+              </button>`
+            )
+            .join("")
+        : `<div class="teams-empty">No saved comparisons yet — run a Compare and it'll show up here.</div>`;
+    }
+    els.historyToggle.addEventListener("click", () => {
+      els.compareHistory.hidden = !els.compareHistory.hidden;
+      if (!els.compareHistory.hidden) renderCompareHistory();
+    });
+    els.compareHistory.addEventListener("click", (e) => {
+      if (e.target.closest("#history-clear")) {
+        CompareHistory.clear();
+        renderCompareHistory();
+        return;
+      }
+      const entryBtn = e.target.closest(".history-entry");
+      if (!entryBtn) return;
+      const entry = CompareHistory.list()[Number(entryBtn.dataset.i)];
+      if (!entry) return;
+      setMode(entry.mode);
+      els.inputA.value = entry.mode === "team" ? entry.a.tag : entry.a.username;
+      els.inputB.value = entry.mode === "team" ? entry.b.tag : entry.b.username;
+      setStatus("");
+      els.result.innerHTML =
+        `<div class="history-saved-note">Saved comparison from ${fmtHistoryWhen(entry.ts)} — run Compare again for current numbers.</div>` +
+        (entry.mode === "team" ? renderTeams(entry.a, entry.b) : renderRacers(entry.a, entry.b));
+      els.result.hidden = false;
+      els.compareHistory.hidden = true;
+    });
+    CompareHistory.subscribe(() => {
+      if (!els.compareHistory.hidden) renderCompareHistory();
     });
 
     function open() {
@@ -1694,6 +2010,27 @@
     .find-link { align-self: flex-start; background: none; border: none; color: var(--nt-gold); font-size: 12px; font-weight: 700; padding: 3px 0 0; cursor: pointer; font-family: inherit; }
     .find-link:hover { text-decoration: underline; }
 
+    .history-toggle {
+      display: block; margin: 10px 0 0; background: none; border: none; color: var(--nt-dim);
+      font-size: 12px; font-weight: 700; cursor: pointer; padding: 0; font-family: inherit;
+    }
+    .history-toggle:hover { color: var(--nt-gold); }
+    .compare-history { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+    .history-entry {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      background: var(--nt-panel); border: 1px solid var(--nt-line); border-radius: 7px;
+      padding: 9px 12px; font-size: 13px; color: var(--nt-text); cursor: pointer; font-family: inherit; text-align: left;
+    }
+    .history-entry:hover { border-color: var(--nt-gold); }
+    .history-vs { color: var(--nt-dim); font-size: 11px; font-weight: 700; margin: 0 2px; }
+    .history-when { color: var(--nt-dim); font-size: 11px; white-space: nowrap; }
+    .history-clear {
+      align-self: flex-end; background: none; border: none; color: var(--nt-dim); font-size: 11px;
+      font-weight: 700; cursor: pointer; padding: 0 0 2px; font-family: inherit;
+    }
+    .history-clear:hover { color: #ff6b63; }
+    .history-saved-note { font-size: 12px; color: var(--nt-dim); margin-bottom: 10px; padding: 8px 10px; background: var(--nt-panel); border-radius: 6px; }
+
     .finder { margin: 12px 0 0; padding: 14px; background: var(--nt-panel); border: 1px solid var(--nt-line); border-radius: 8px; display: flex; flex-direction: column; gap: 10px; }
     .finder-row { display: flex; gap: 8px; }
     .finder-team-input { flex: 1; background: var(--nt-bg); border: 1px solid var(--nt-line); color: var(--nt-text); border-radius: 6px; padding: 8px 10px; font-size: 14px; font-family: inherit; }
@@ -1713,6 +2050,14 @@
       border-radius: 8px; padding: 11px 14px; font-size: 14px; font-family: inherit;
     }
     .teams-search:focus { outline: 2px solid var(--nt-red); outline-offset: -1px; }
+    .teams-head-actions { display: flex; gap: 10px; align-items: center; }
+    .team-finder-btn {
+      background: var(--nt-red-dim); color: var(--nt-gold); border: 1px solid var(--nt-line); border-radius: 8px;
+      padding: 10px 14px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit;
+    }
+    .team-finder-btn:hover { filter: brightness(1.2); }
+    .team-finder-btn:disabled { opacity: 0.6; cursor: default; }
+    .team-finder-note { font-size: 12px; color: var(--nt-gold); margin: -8px 0 16px; }
     .teams-filters {
       display: flex; align-items: end; gap: 14px; flex-wrap: wrap;
       margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--nt-line);
@@ -1751,6 +2096,25 @@
     .team-card-link { color: var(--nt-gold); font-size: 12px; font-weight: 700; }
     .team-card-synced { font-size: 10.5px; color: var(--nt-dim); opacity: 0.75; white-space: nowrap; }
     .teams-empty { grid-column: 1 / -1; font-size: 13px; color: var(--nt-dim); padding: 20px 4px; line-height: 1.6; }
+
+    .team-detail-back {
+      background: none; border: none; color: var(--nt-dim); font-size: 13px; font-weight: 700;
+      cursor: pointer; padding: 0 0 16px; font-family: inherit;
+    }
+    .team-detail-back:hover { color: var(--nt-gold); }
+    .team-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .team-detail-tag { font-size: 20px; font-weight: 800; margin-right: 6px; }
+    .team-detail-name { font-size: 18px; font-weight: 700; }
+    .team-detail-stats { display: flex; gap: 20px; flex-wrap: wrap; color: var(--nt-dim); font-size: 13px; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--nt-line); }
+    .team-detail-stats b { color: var(--nt-text); font-weight: 700; }
+    .team-detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .team-detail-table th { text-align: left; color: var(--nt-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; padding: 0 10px 8px; border-bottom: 1px solid var(--nt-line); }
+    .team-detail-table td { padding: 7px 10px; border-bottom: 1px solid var(--nt-line); }
+    .team-detail-row-short td { color: #ff6b63; }
+    .team-detail-trend-up { color: #6fcf6f; }
+    .team-detail-trend-down { color: #ff7a6e; }
+    .team-detail-external { display: inline-block; margin-top: 16px; color: var(--nt-gold); font-size: 12.5px; font-weight: 700; text-decoration: none; }
+    .team-detail-external:hover { text-decoration: underline; }
 
     .status { padding: 16px 0; color: var(--nt-dim); font-size: 15px; }
     .status.error { color: #ff6b63; }

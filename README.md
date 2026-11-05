@@ -47,8 +47,15 @@ captain, member count, formed date, race/speed requirement, and when
 you last looked it up. Type part of a tag or name to search, sort by
 member count, how recently a team formed, or its speed requirement,
 and cap results by max min-speed, max min-races, or min member count
-— click a card to open that team's real nitrotype.com team page in a
-new tab.
+— click a card to open that team's roster right inside the panel
+(see "In-panel team detail" below); the real nitrotype.com team page
+is still one click away from there.
+
+**Find teams for me**: click this button above the search box to rank
+every tracked team against your own avg speed (pulled from your "my
+racer" setting) — it fills in the speed filter and sorts toughest-
+qualifying-first, so you can see which teams you'd already clear the
+speed bar for, from the most competitive down to the most comfortable.
 
 Nitro Type doesn't publish a full list of every team (its own in-game
 search needs a login token this extension deliberately doesn't touch),
@@ -64,6 +71,26 @@ tab too.
 The toolbar icon (no popup) also toggles the panel open/closed on the
 active nitrotype.com tab, as a backup if the nav tab is ever hard to
 find.
+
+### In-panel team detail
+
+Clicking a team card opens its full roster right inside the TypeTrack
+panel — tag, name, member count, requirements, and every member's
+race count and compliance status — without leaving the page or opening
+a new tab. Watch/unwatch the team from here too. If it's your own team,
+the roster table gains two extra columns: **Trend** (races played
+today vs. yesterday, recorded automatically in the background) and
+**Proj. this week** (your current pace projected to the end of the
+week against the race requirement), plus a note on whoever's been
+quietest lately — a captain's view of the roster, not just a snapshot.
+
+### Compare history
+
+Every Compare you run is saved locally (last 20). Click **Recent
+comparisons** under the Compare form to browse them — picking one
+re-fills the form and shows that saved result again, labeled with how
+long ago it was run, so you can see how a matchup has shifted since
+without re-fetching anything.
 
 The whole panel is set in [Manrope](https://github.com/google/fonts/tree/main/ofl/manrope),
 the same clean, squared-but-flowing geometric sans [StarTrack](https://www.ntstartrack.org/)
@@ -114,9 +141,10 @@ comparison badges above do, once your team/racer is set:
 - **Your progress, on your own racer page**: a floating badge replaces
   the usual "vs you" comparison badge when you're looking at your own
   profile, showing how your races-played and avg speed have moved over
-  the last 7 days, trending up/down/steady. A background snapshot of
-  your stats is taken roughly once a day (even with no tab open) so
-  this has real history to show, not just today's number.
+  the last 7 days, trending up/down/steady, plus a small line chart of
+  your recent avg-speed snapshots. A background snapshot of your stats
+  is taken roughly once a day (even with no tab open) so this has real
+  history to show, not just today's number.
 - **Daily race goal + streak**: set an optional daily race goal from
   the ⚙ settings popover. Hit it on a given day and your streak ticks
   up; miss it and it resets. The streak shows both inside your

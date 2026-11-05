@@ -148,6 +148,48 @@ async function checkMyProgress() {
 }
 
 // ---------------------------------------------------------------------
+// Captain roster trends — a day-over-day per-member snapshot of your own
+// team's race counts, so the roster view can show who's improving, who's
+// stalled, and who's been quiet, instead of just today's numbers. Same
+// "has to live here" reasoning as the progress snapshot above: a day
+// still gets recorded even with no nitrotype.com tab open.
+// ---------------------------------------------------------------------
+
+async function checkMyRosterSnapshot() {
+  const stored = await storageGet(["ntcmp:myTeam", "ntcmp:rosterSnapshots"]);
+  const myTeam = stored["ntcmp:myTeam"];
+  if (!myTeam) return;
+
+  let team;
+  try {
+    team = await NT.fetchTeam(myTeam);
+  } catch (e) {
+    return; // flaky fetch — try again next check
+  }
+
+  const all = stored["ntcmp:rosterSnapshots"] || {};
+  const prevForTeam = all[myTeam] || {};
+  const today = utcDateKey(Date.now());
+  const curMembers = {};
+  for (const m of team.members || []) {
+    if (!m.username) continue;
+    curMembers[m.username] = { played: m.played || 0, displayName: m.displayName || m.username };
+  }
+
+  let next;
+  if (prevForTeam.curDate === today) {
+    // Already have today's snapshot — just refresh it, keep yesterday's as-is.
+    next = { ...prevForTeam, curMembers };
+  } else {
+    // A new day — roll today's snapshot back to "previous" so there's
+    // always a day-over-day baseline to diff against.
+    next = { prevDate: prevForTeam.curDate || null, prevMembers: prevForTeam.curMembers || {}, curDate: today, curMembers };
+  }
+  all[myTeam] = next;
+  await storageSet({ "ntcmp:rosterSnapshots": all });
+}
+
+// ---------------------------------------------------------------------
 // Rival tracking — a short list of other racers (built from the "+ Rival"
 // button on the on-page racer comparison badge) this alarm re-checks
 // against your own racer's current avg speed, firing a notification the
@@ -207,6 +249,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name !== WATCH_ALARM) return;
   checkWatchedTeams();
   checkMyRacerDrivenTasks();
+  checkMyRosterSnapshot();
 });
 
 // A team just got starred in the Teams tab — grab its baseline snapshot
