@@ -9,13 +9,11 @@ Idea and spec by Void Racer. Built with Claude Code.
 ## What it does
 
 Once installed, a **⚡ TypeTrack** tab appears in Nitro Type's own nav
-bar (next to Garage, Season, Shop, etc.) on every nitrotype.com page, and
-a red ⚡ button is fixed to the bottom-right corner of every page as a
-guaranteed-visible way in too (or press **Alt+T** anywhere on the site).
-Click either one to open a centered, rounded card styled to match Nitro
-Type's own look and feel, with three tabs — **1**/**2**/**3** switch
-between them while the panel is open, and **/** jumps to the Teams
-search box:
+bar (next to Garage, Season, Shop, etc.) on every nitrotype.com page —
+or press **Alt+T** anywhere on the site. Either one opens a centered,
+rounded card styled to match Nitro Type's own look and feel, with three
+tabs — **1**/**2**/**3** switch between them while the panel is open,
+and **/** jumps to the Teams search box:
 
 ### Compare
 
@@ -125,10 +123,9 @@ always sticks. From then on:
 
 ### Unseen-teams counter
 
-The fab and the nav tab both show a small gold counter for how many
-teams have shown up — from your own browsing or from the shared list —
-since you last actually opened the Teams tab. It clears the moment you
-open it.
+The nav tab shows a small gold counter for how many teams have shown
+up — from your own browsing or from the shared list — since you last
+actually opened the Teams tab. It clears the moment you open it.
 
 ### Watch a team for changes
 
@@ -156,7 +153,7 @@ comparison badges above do, once your team/racer is set:
 - **Daily race goal + streak**: set an optional daily race goal from
   the ⚙ settings popover. Hit it on a given day and your streak ticks
   up; miss it and it resets. The streak shows both inside your
-  progress badge and as a small 🔥N indicator right on the fab button,
+  progress badge and as a small 🔥N indicator right on the nav tab,
   site-wide, so it's visible without opening TypeTrack at all.
 - **Roster compliance, on your own team page**: a floating badge
   replaces the usual comparison badge when you're looking at your own

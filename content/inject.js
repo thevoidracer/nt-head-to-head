@@ -181,7 +181,7 @@
 
     // How many teams have arrived (locally or via the shared list) since
     // the Teams tab was last actually opened — drives the small counter
-    // badge on the fab/nav tab so there's a signal without opening it.
+    // badge on the nav tab so there's a signal without opening it.
     function unseenCount() {
       return Math.max(0, teams.length - seenCount);
     }
@@ -1116,6 +1116,11 @@
     const labelNode = link.querySelector("span") || link;
     labelNode.textContent = "";
     labelNode.append("⚡ TypeTrack");
+    const streakSpan = document.createElement("span");
+    streakSpan.id = "ntcmp-nav-streak";
+    streakSpan.style.cssText = "display:inline-block;margin-left:6px;font-size:11px;font-weight:800;";
+    streakSpan.hidden = true;
+    labelNode.append(streakSpan);
     const badge = document.createElement("span");
     badge.id = "ntcmp-nav-badge";
     badge.style.cssText =
@@ -1131,7 +1136,16 @@
 
     li.parentNode.insertBefore(clone, li.nextSibling);
     updateNavBadge(TeamDirectory.unseenCount());
+    Progress.getStreak().then(updateNavStreak);
   }
+
+  function updateNavStreak(n) {
+    const el = document.getElementById("ntcmp-nav-streak");
+    if (!el) return;
+    el.textContent = `🔥${n}`;
+    el.hidden = !n;
+  }
+  Progress.subscribe(() => Progress.getStreak().then(updateNavStreak));
 
   function updateNavBadge(n) {
     const badge = document.getElementById("ntcmp-nav-badge");
@@ -1217,9 +1231,6 @@
 
     root.innerHTML = `
       <style>${FONT_FACE_CSS}${PANEL_CSS}</style>
-      <button id="fab" class="fab" aria-label="Open TypeTrack" title="TypeTrack — compare &amp; browse teams (Alt+T)">
-        <span class="fab-bolt">⚡</span>TypeTrack<span class="fab-streak" id="fab-streak" hidden></span><span class="fab-badge" id="fab-badge" hidden></span>
-      </button>
       <div class="backdrop" id="backdrop"></div>
       <div class="panel" id="panel">
         <header class="head">
@@ -1378,9 +1389,6 @@
     const state = { mode: "team", open: false };
 
     const els = {
-      fab: root.getElementById("fab"),
-      fabBadge: root.getElementById("fab-badge"),
-      fabStreak: root.getElementById("fab-streak"),
       backdrop: root.getElementById("backdrop"),
       panel: root.getElementById("panel"),
       gearBtn: root.getElementById("gear-btn"),
@@ -1470,26 +1478,6 @@
       Theme.set(btn.dataset.id).then(renderThemeSwatches);
     });
 
-    // Site-wide streak badge on the fab itself — not just inside the panel —
-    // so a streak stays visible without opening TypeTrack at all.
-    async function updateStreakBadge() {
-      const streak = await Progress.getStreak();
-      els.fabStreak.textContent = `🔥${streak}`;
-      els.fabStreak.hidden = !streak;
-    }
-    updateStreakBadge();
-    Progress.subscribe(updateStreakBadge);
-
-    // Unseen-teams counter — a small badge on the fab showing how many
-    // teams (local finds + shared-list syncs) have shown up since the
-    // Teams tab was last actually opened.
-    function updateFabBadge() {
-      const n = TeamDirectory.unseenCount();
-      els.fabBadge.textContent = n > 99 ? "99+" : String(n);
-      els.fabBadge.hidden = n === 0;
-    }
-    updateFabBadge();
-    TeamDirectory.subscribe(updateFabBadge);
 
     function renderKnownTeamsDatalist(teams) {
       els.knownTeamsList.innerHTML = teams
@@ -2189,7 +2177,6 @@
     }
 
     els.raceNowBtn.addEventListener("click", () => close());
-    els.fab.addEventListener("click", toggle);
     els.closeBtn.addEventListener("click", close);
     els.backdrop.addEventListener("click", close);
 
@@ -2263,28 +2250,6 @@
       --nt-radius: 10px;
       --nt-radius-sm: 7px;
       --nt-bevel: inset 0 -3px 0 rgba(0,0,0,0.25);
-    }
-
-    .fab {
-      position: fixed; right: 24px; bottom: 116px;
-      display: flex; align-items: center; gap: 8px;
-      padding: 13px 22px; border-radius: 999px;
-      background: var(--nt-red); color: #fff; border: 1px solid rgba(255,255,255,0.15);
-      font-family: var(--nt-font); font-size: 15px; font-weight: 700;
-      cursor: pointer; white-space: nowrap;
-      box-shadow: var(--nt-bevel), 0 4px 16px rgba(0,0,0,0.5);
-      z-index: 2147482999;
-    }
-    .fab:hover { filter: brightness(1.1); transform: scale(1.05); }
-    .fab:active { box-shadow: inset 0 2px 0 rgba(0,0,0,0.2); transform: scale(0.99); }
-    .fab-bolt { font-size: 18px; }
-    .fab-badge {
-      display: inline-flex; align-items: center; justify-content: center;
-      min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
-      background: var(--nt-gold); color: #13223a; font-size: 11px; font-weight: 800;
-    }
-    .fab-streak {
-      display: inline-flex; align-items: center; font-size: 12px; font-weight: 800;
     }
 
     .backdrop {
