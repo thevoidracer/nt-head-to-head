@@ -1328,10 +1328,38 @@
       <div class="backdrop" id="backdrop"></div>
       <div class="panel" id="panel">
         <header class="head">
-          <span class="logo"><span class="logo-bolt">⚡</span>TYPETRACK</span>
-          <div class="head-right">
-            <button type="button" class="my-team-btn" id="my-team-btn" title="Open your team's roster" hidden>My Team</button>
-            <a class="race-now-btn" id="race-now-btn" href="https://www.nitrotype.com/race">🏁 Race Now</a>
+          <div class="head-top">
+            <span class="logo"><span class="logo-bolt">⚡</span>TYPETRACK</span>
+            <div class="head-top-actions">
+              <div class="settings-wrap">
+                <button class="gear-btn" id="gear-btn" aria-label="Settings" title="Set your team &amp; racer">⚙</button>
+                <div class="settings-pop" id="settings-pop" hidden>
+                  <div class="settings-title">Your identity</div>
+                  <div class="settings-note">Auto-filled from your Nitro Type account when you're logged in — change either one any time, and it sticks.</div>
+                  <label class="settings-field">
+                    <span>My team tag</span>
+                    <input type="text" id="settings-my-team" placeholder="e.g. IMT" autocomplete="off" spellcheck="false" />
+                  </label>
+                  <label class="settings-field">
+                    <span>My racer username</span>
+                    <input type="text" id="settings-my-racer" placeholder="e.g. voidracer" autocomplete="off" spellcheck="false" />
+                  </label>
+                  <label class="settings-field">
+                    <span>Daily race goal (optional)</span>
+                    <input type="number" id="settings-daily-goal" min="0" placeholder="e.g. 50" autocomplete="off" />
+                  </label>
+                  <div class="settings-field">
+                    <span>Theme</span>
+                    <div class="theme-swatches" id="theme-swatches"></div>
+                  </div>
+                  <button type="button" class="settings-invite-btn" id="settings-invite-btn">📋 Share TypeTrack</button>
+                  <button type="button" class="settings-save" id="settings-save">Save</button>
+                </div>
+              </div>
+              <button class="close-btn" id="close-btn" aria-label="Close">✕</button>
+            </div>
+          </div>
+          <div class="head-tabs">
             <div class="mode-switch view-switch">
               <button class="mode-btn view-btn active" data-view="compare" type="button"><span class="tab-icon">⇄</span>Compare</button>
               <button class="mode-btn view-btn" data-view="teams" type="button"><span class="tab-icon">▦</span>Teams</button>
@@ -1339,30 +1367,10 @@
               <button class="mode-btn view-btn" data-view="today" type="button"><span class="tab-icon">◷</span>Today</button>
               <button class="mode-btn view-btn" data-view="leaderboard" type="button"><span class="tab-icon">🏆</span>Leaderboard</button>
             </div>
-            <button class="gear-btn" id="gear-btn" aria-label="Settings" title="Set your team &amp; racer">⚙</button>
-            <button class="close-btn" id="close-btn" aria-label="Close">✕</button>
-          </div>
-          <div class="settings-pop" id="settings-pop" hidden>
-            <div class="settings-title">Your identity</div>
-            <div class="settings-note">Auto-filled from your Nitro Type account when you're logged in — change either one any time, and it sticks.</div>
-            <label class="settings-field">
-              <span>My team tag</span>
-              <input type="text" id="settings-my-team" placeholder="e.g. IMT" autocomplete="off" spellcheck="false" />
-            </label>
-            <label class="settings-field">
-              <span>My racer username</span>
-              <input type="text" id="settings-my-racer" placeholder="e.g. voidracer" autocomplete="off" spellcheck="false" />
-            </label>
-            <label class="settings-field">
-              <span>Daily race goal (optional)</span>
-              <input type="number" id="settings-daily-goal" min="0" placeholder="e.g. 50" autocomplete="off" />
-            </label>
-            <div class="settings-field">
-              <span>Theme</span>
-              <div class="theme-swatches" id="theme-swatches"></div>
+            <div class="head-tabs-actions">
+              <button type="button" class="my-team-btn" id="my-team-btn" title="Open your team's roster" hidden>My Team</button>
+              <a class="race-now-btn" id="race-now-btn" href="https://www.nitrotype.com/race">🏁 Race Now</a>
             </div>
-            <button type="button" class="settings-invite-btn" id="settings-invite-btn">📋 Share TypeTrack</button>
-            <button type="button" class="settings-save" id="settings-save">Save</button>
           </div>
         </header>
 
@@ -2960,7 +2968,7 @@
        behind it. */
     .panel {
       position: fixed; inset: 0; margin: auto;
-      width: min(94vw, 900px); height: min(88vh, 760px);
+      width: min(97vw, 1360px); height: min(94vh, 940px);
       background: var(--nt-bg); color: var(--nt-text);
       font-family: var(--nt-font); font-size: 14px;
       border-radius: var(--nt-radius-lg);
@@ -2974,26 +2982,29 @@
     .panel.open { opacity: 1; transform: scale(1); pointer-events: auto; }
 
     .head {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 24px; flex-shrink: 0;
+      display: flex; flex-direction: column; gap: 14px;
+      padding: 18px 32px 16px; flex-shrink: 0;
       background: linear-gradient(180deg, var(--nt-panel-raised), var(--nt-panel));
       border-bottom: 3px solid var(--nt-gold);
       border-radius: var(--nt-radius-lg) var(--nt-radius-lg) 0 0;
       position: sticky; top: 0; z-index: 2;
     }
+    .head-top { display: flex; align-items: center; justify-content: space-between; }
+    .head-top-actions { display: flex; align-items: center; gap: 2px; }
+    .head-tabs { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+    .head-tabs-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
     .logo {
-      font-weight: 800; font-size: 19px; letter-spacing: 0.02em;
+      font-weight: 800; font-size: 20px; letter-spacing: 0.02em;
       font-style: italic; color: var(--nt-text);
     }
     .logo-bolt { color: var(--nt-gold); margin-right: 6px; font-style: normal; }
-    .head-right { display: flex; align-items: center; gap: 14px; }
     .mode-switch { display: flex; background: var(--nt-bg); border-radius: 999px; padding: 3px; border: 1px solid var(--nt-line); }
     .mode-btn {
       border: none; background: transparent; color: var(--nt-dim);
-      padding: 7px 16px; font-size: 13px; font-weight: 700; letter-spacing: 0.02em;
+      padding: 8px 18px; font-size: 13.5px; font-weight: 700; letter-spacing: 0.02em;
       border-radius: 999px; cursor: pointer; font-family: inherit;
     }
-    .view-switch .view-btn { padding: 7px 12px; white-space: nowrap; }
+    .view-switch .view-btn { padding: 8px 16px; white-space: nowrap; }
     .mode-btn.active { background: var(--nt-red); color: #fff; box-shadow: var(--nt-bevel); }
     .tab-icon { display: inline-block; margin-right: 5px; opacity: 0.85; }
     .race-now-btn {
@@ -3014,8 +3025,9 @@
     .close-btn { background: none; border: none; color: var(--nt-dim); font-size: 20px; cursor: pointer; padding: 2px 8px; }
     .close-btn:hover { color: var(--nt-text); }
 
+    .settings-wrap { position: relative; }
     .settings-pop {
-      position: absolute; top: 100%; right: 28px; margin-top: 8px; z-index: 3;
+      position: absolute; top: 100%; right: 0; margin-top: 8px; z-index: 3;
       width: 260px; background: var(--nt-panel); border: 1px solid var(--nt-line);
       border-radius: 10px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
       display: flex; flex-direction: column; gap: 10px;
@@ -3049,7 +3061,7 @@
     }
     .settings-invite-btn:hover { background: rgba(240,199,94,0.12); }
 
-    .content { width: 100%; max-width: 1180px; margin: 0 auto; padding: 28px 24px 48px; flex: 1; min-height: 0; overflow-y: auto; }
+    .content { width: 100%; max-width: 1280px; margin: 0 auto; padding: 32px 36px 48px; flex: 1; min-height: 0; overflow-y: auto; }
     .compare-inner { max-width: 760px; margin: 0 auto; }
 
     .inputs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 16px; }
