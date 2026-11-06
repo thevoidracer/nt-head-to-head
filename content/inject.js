@@ -612,14 +612,14 @@
     :host {
       --nt-panel: #13223a; --nt-line: #24395c; --nt-text: #f0f4fa;
       --nt-dim: #8fa3bf; --nt-gold: #f0c75e;
-      --nt-font: "Manrope", "Segoe UI", Roboto, system-ui, sans-serif;
+      --nt-font: "Montserrat", "Manrope", "Segoe UI", Roboto, system-ui, sans-serif;
       all: initial;
     }
     .badge {
       position: fixed; z-index: 2147482998; right: 24px; bottom: 192px;
       display: block; width: 236px; text-decoration: none; cursor: pointer;
-      background: var(--nt-panel); border: 1px solid var(--nt-line); border-left: 4px solid var(--nt-gold);
-      border-radius: 10px; padding: 14px 16px; color: var(--nt-text);
+      background: var(--nt-panel); border: 2px solid var(--nt-gold);
+      border-radius: 14px; padding: 14px 16px; color: var(--nt-text);
       font-family: var(--nt-font); box-shadow: 0 6px 20px rgba(0,0,0,0.5);
     }
     .badge:hover { border-color: var(--nt-gold); }
@@ -1351,7 +1351,9 @@
       els.teamDetailBody.innerHTML = `<div class="teams-empty">Loading [${escapeHtml(tag)}]'s roster…</div>`;
       let team;
       try {
-        team = await NT.fetchTeam(tag);
+        const onRetry = (attempt, total) =>
+          (els.teamDetailBody.innerHTML = `<div class="teams-empty">Nitro Type is rate-limiting lookups right now — retrying [${escapeHtml(tag)}] (${attempt}/${total})…</div>`);
+        team = await NT.fetchTeam(tag, { onRetry });
       } catch (err) {
         els.teamDetailBody.innerHTML = `<div class="teams-empty">Couldn't load [${escapeHtml(tag)}]: ${escapeHtml(err.message || "lookup failed")}</div>`;
         return;
@@ -1764,7 +1766,8 @@
       setStatus("Fetching…");
       try {
         const fetchFn = state.mode === "team" ? NT.fetchTeam : NT.fetchRacer;
-        const [dataA, dataB] = await Promise.all([fetchFn(a), fetchFn(b)]);
+        const onRetry = (attempt, total) => setStatus(`Nitro Type is rate-limiting lookups right now — retrying (${attempt}/${total})…`);
+        const [dataA, dataB] = await Promise.all([fetchFn(a, { onRetry }), fetchFn(b, { onRetry })]);
         setStatus("");
         els.result.innerHTML = state.mode === "team" ? renderTeams(dataA, dataB) : renderRacers(dataA, dataB);
         els.result.hidden = false;
@@ -1893,8 +1896,11 @@
     :host, * { box-sizing: border-box; }
     [hidden] { display: none !important; }
 
-    /* Palette pulled from Nitro Type's own site: deep navy backgrounds,
-       its signature red, and the gold it uses for Legend/trophy accents. */
+    /* Palette and type sampled straight from the live site: Montserrat (the
+       same @font-face Nitro Type's own page already loads document-wide, so
+       this just references it rather than shipping a second font), the
+       exact red its race/CTA buttons use, and the chunky, deeply-rounded,
+       beveled "game button" look instead of a flat SaaS one. */
     :host {
       --nt-bg: #0b1626;
       --nt-panel: #13223a;
@@ -1902,23 +1908,28 @@
       --nt-line: #24395c;
       --nt-text: #f0f4fa;
       --nt-dim: #8fa3bf;
-      --nt-red: #e2231a;
+      --nt-red: #d62f3a;
       --nt-red-dim: #3a1414;
       --nt-gold: #f0c75e;
-      --nt-font: "Manrope", "Segoe UI", Roboto, system-ui, sans-serif;
+      --nt-font: "Montserrat", "Manrope", "Segoe UI", Roboto, system-ui, sans-serif;
+      --nt-radius-lg: 20px;
+      --nt-radius: 10px;
+      --nt-radius-sm: 7px;
+      --nt-bevel: inset 0 -3px 0 rgba(0,0,0,0.25);
     }
 
     .fab {
       position: fixed; right: 24px; bottom: 116px;
       display: flex; align-items: center; gap: 8px;
-      padding: 13px 20px; border-radius: 14px;
-      background: var(--nt-red); color: #fff; border: 2px solid #ff6b63;
+      padding: 13px 22px; border-radius: 999px;
+      background: var(--nt-red); color: #fff; border: 1px solid rgba(255,255,255,0.15);
       font-family: var(--nt-font); font-size: 15px; font-weight: 700;
       cursor: pointer; white-space: nowrap;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      box-shadow: var(--nt-bevel), 0 4px 16px rgba(0,0,0,0.5);
       z-index: 2147482999;
     }
     .fab:hover { filter: brightness(1.1); transform: scale(1.05); }
+    .fab:active { box-shadow: inset 0 2px 0 rgba(0,0,0,0.2); transform: scale(0.99); }
     .fab-bolt { font-size: 18px; }
     .fab-badge {
       display: inline-flex; align-items: center; justify-content: center;
@@ -1930,43 +1941,52 @@
     }
 
     .backdrop {
-      position: fixed; inset: 0; background: rgba(4,9,18,0.7);
+      position: fixed; inset: 0; background: rgba(4,9,18,0.72);
       opacity: 0; pointer-events: none; transition: opacity 0.18s ease;
       z-index: 2147483000;
     }
     .backdrop.open { opacity: 1; pointer-events: auto; }
 
+    /* A centered, deeply-rounded card with a gold ring, like Nitro Type's
+       own modals and the ring-bordered bubble cards on its garage/shop
+       pages — not a flat full-bleed rectangle that blots out the game
+       behind it. */
     .panel {
-      position: fixed; inset: 0;
+      position: fixed; inset: 0; margin: auto;
+      width: min(94vw, 900px); height: min(88vh, 760px);
       background: var(--nt-bg); color: var(--nt-text);
       font-family: var(--nt-font); font-size: 14px;
-      opacity: 0; transform: scale(0.98); transition: opacity 0.18s ease, transform 0.18s ease;
+      border-radius: var(--nt-radius-lg);
+      box-shadow: 0 0 0 2px var(--nt-gold) inset, 0 20px 60px rgba(0,0,0,0.55);
+      opacity: 0; transform: scale(0.97); transition: opacity 0.18s ease, transform 0.18s ease;
       pointer-events: none;
       z-index: 2147483001;
       display: flex; flex-direction: column;
-      overflow-y: auto;
+      overflow: hidden;
     }
     .panel.open { opacity: 1; transform: scale(1); pointer-events: auto; }
 
     .head {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 18px 28px; border-bottom: 2px solid var(--nt-red);
-      background: var(--nt-panel); flex-shrink: 0;
+      padding: 16px 24px; flex-shrink: 0;
+      background: linear-gradient(180deg, var(--nt-panel-raised), var(--nt-panel));
+      border-bottom: 3px solid var(--nt-gold);
+      border-radius: var(--nt-radius-lg) var(--nt-radius-lg) 0 0;
       position: sticky; top: 0; z-index: 2;
     }
     .logo {
-      font-weight: 800; font-size: 20px; letter-spacing: 0.03em;
+      font-weight: 800; font-size: 19px; letter-spacing: 0.02em;
       font-style: italic; color: var(--nt-text);
     }
     .logo-bolt { color: var(--nt-gold); margin-right: 6px; font-style: normal; }
     .head-right { display: flex; align-items: center; gap: 14px; }
-    .mode-switch { display: flex; background: var(--nt-bg); border-radius: 8px; padding: 3px; border: 1px solid var(--nt-line); }
+    .mode-switch { display: flex; background: var(--nt-bg); border-radius: 999px; padding: 3px; border: 1px solid var(--nt-line); }
     .mode-btn {
       border: none; background: transparent; color: var(--nt-dim);
       padding: 7px 16px; font-size: 13px; font-weight: 700; letter-spacing: 0.02em;
-      border-radius: 6px; cursor: pointer; font-family: inherit;
+      border-radius: 999px; cursor: pointer; font-family: inherit;
     }
-    .mode-btn.active { background: var(--nt-red); color: #fff; }
+    .mode-btn.active { background: var(--nt-red); color: #fff; box-shadow: var(--nt-bevel); }
     .gear-btn { background: none; border: none; color: var(--nt-dim); font-size: 17px; cursor: pointer; padding: 2px 6px; }
     .gear-btn:hover { color: var(--nt-text); }
     .close-btn { background: none; border: none; color: var(--nt-dim); font-size: 20px; cursor: pointer; padding: 2px 8px; }
@@ -1987,12 +2007,14 @@
     }
     .settings-field input:focus { outline: 2px solid var(--nt-red); outline-offset: -1px; }
     .settings-save {
-      background: var(--nt-red); color: #fff; border: none; border-radius: 7px;
-      padding: 9px; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit;
+      background: var(--nt-red); color: #fff; border: none; border-radius: var(--nt-radius-sm);
+      padding: 10px; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit;
+      box-shadow: var(--nt-bevel);
     }
     .settings-save:hover { filter: brightness(1.12); }
+    .settings-save:active { box-shadow: inset 0 2px 0 rgba(0,0,0,0.2); }
 
-    .content { width: 100%; max-width: 1180px; margin: 0 auto; padding: 32px 24px 60px; flex: 1; }
+    .content { width: 100%; max-width: 1180px; margin: 0 auto; padding: 28px 24px 48px; flex: 1; min-height: 0; overflow-y: auto; }
     .compare-inner { max-width: 760px; margin: 0 auto; }
 
     .inputs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 16px; }
@@ -2006,10 +2028,12 @@
     .vs { color: var(--nt-gold); font-size: 15px; font-weight: 800; font-style: italic; padding-bottom: 13px; justify-self: center; }
     .compare-btn {
       grid-column: 1 / -1; margin-top: 10px; background: var(--nt-red); color: #fff;
-      border: none; border-radius: 8px; padding: 14px; font-size: 15px; font-weight: 800;
+      border: none; border-radius: var(--nt-radius); padding: 14px; font-size: 15px; font-weight: 800;
       letter-spacing: 0.03em; cursor: pointer; font-family: inherit;
+      box-shadow: var(--nt-bevel);
     }
     .compare-btn:hover { filter: brightness(1.12); }
+    .compare-btn:active { box-shadow: inset 0 2px 0 rgba(0,0,0,0.2); }
     .compare-btn:disabled { opacity: 0.5; cursor: default; }
 
     .find-link { align-self: flex-start; background: none; border: none; color: var(--nt-gold); font-size: 12px; font-weight: 700; padding: 3px 0 0; cursor: pointer; font-family: inherit; }
@@ -2039,7 +2063,7 @@
     .finder { margin: 12px 0 0; padding: 14px; background: var(--nt-panel); border: 1px solid var(--nt-line); border-radius: 8px; display: flex; flex-direction: column; gap: 10px; }
     .finder-row { display: flex; gap: 8px; }
     .finder-team-input { flex: 1; background: var(--nt-bg); border: 1px solid var(--nt-line); color: var(--nt-text); border-radius: 6px; padding: 8px 10px; font-size: 14px; font-family: inherit; }
-    .finder-load-btn { background: var(--nt-red-dim); color: var(--nt-gold); border: 1px solid var(--nt-line); border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+    .finder-load-btn { background: var(--nt-red-dim); color: var(--nt-gold); border: 1px solid var(--nt-line); border-radius: var(--nt-radius-sm); padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
     .finder-load-btn:hover { filter: brightness(1.2); }
     .finder-roster { background: var(--nt-bg); border: 1px solid var(--nt-line); color: var(--nt-text); border-radius: 6px; padding: 8px 10px; font-size: 14px; font-family: inherit; width: 100%; }
     .finder-status { font-size: 12px; color: var(--nt-dim); }
@@ -2057,8 +2081,9 @@
     .teams-search:focus { outline: 2px solid var(--nt-red); outline-offset: -1px; }
     .teams-head-actions { display: flex; gap: 10px; align-items: center; }
     .team-finder-btn {
-      background: var(--nt-red-dim); color: var(--nt-gold); border: 1px solid var(--nt-line); border-radius: 8px;
-      padding: 10px 14px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit;
+      background: var(--nt-gold); color: #13223a; border: none; border-radius: var(--nt-radius-sm);
+      padding: 10px 14px; font-size: 13px; font-weight: 800; cursor: pointer; white-space: nowrap; font-family: inherit;
+      box-shadow: var(--nt-bevel);
     }
     .team-finder-btn:hover { filter: brightness(1.2); }
     .team-finder-btn:disabled { opacity: 0.6; cursor: default; }
@@ -2082,7 +2107,7 @@
     .team-card {
       position: relative;
       text-align: left; cursor: pointer; background: var(--nt-panel); border: 1px solid var(--nt-line);
-      border-left: 4px solid var(--team-color, var(--nt-gold)); border-radius: 8px; padding: 16px 16px 12px;
+      border-left: 4px solid var(--team-color, var(--nt-gold)); border-radius: var(--nt-radius); padding: 16px 16px 12px;
       display: flex; flex-direction: column; gap: 5px; text-decoration: none; color: inherit;
     }
     .team-card:hover, .team-card:focus-visible { background: var(--nt-panel-raised); border-color: var(--nt-gold); outline: none; }

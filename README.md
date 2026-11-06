@@ -92,10 +92,15 @@ re-fills the form and shows that saved result again, labeled with how
 long ago it was run, so you can see how a matchup has shifted since
 without re-fetching anything.
 
-The whole panel is set in [Manrope](https://github.com/google/fonts/tree/main/ofl/manrope),
-the same clean, squared-but-flowing geometric sans [StarTrack](https://www.ntstartrack.org/)
-itself uses — self-hosted in the extension so it always loads regardless
-of nitrotype.com's own content-security policy.
+The panel is styled to match Nitro Type itself, not just sit on top of
+it: it's set in Montserrat (the same font Nitro Type's own page already
+loads, referenced directly rather than shipped separately), uses Nitro
+Type's own red, and opens as a centered, deeply-rounded, gold-ringed
+card with chunky beveled buttons — the same "game button" look as the
+site's own UI — instead of a flat rectangle covering the whole page.
+[Manrope](https://github.com/google/fonts/tree/main/ofl/manrope) is
+still self-hosted as a fallback in case Montserrat isn't available for
+some reason.
 
 ### On-page comparisons, without opening the panel at all
 
