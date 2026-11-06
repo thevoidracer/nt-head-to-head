@@ -58,6 +58,16 @@ racer" setting) — it fills in the speed filter and sorts toughest-
 qualifying-first, so you can see which teams you'd already clear the
 speed bar for, from the most competitive down to the most comfortable.
 
+**🏆 Leaderboard**: click this to rank whichever teams are currently
+shown (after any search/filters, capped at 25 at a time) by their real
+race performance — avg speed, points, and accuracy for the current
+season — fetched live, a couple at a time. This ranks the teams this
+install already knows about, not a global leaderboard of every team in
+Nitro Type — the game doesn't publish a full team list to build that
+from, which is also why the grid below only grows from what's actually
+been looked up (see below). Click it again to go back to the normal
+browse view.
+
 Nitro Type doesn't publish a full list of every team (its own in-game
 search needs a login token this extension deliberately doesn't touch),
 so the grid starts from a curated set of active/notable teams and
@@ -174,7 +184,10 @@ A third panel tab beyond Compare and Teams: add any racer's username
 (or use the ☆ Add rival button on a comparison badge — it's the same
 list, up to 8) to see all of them side by side — avg speed, top speed,
 lifetime races — refreshed on demand with a **Refresh** button, rather
-than checking one at a time.
+than checking one at a time. A **Leaderboard** dropdown re-sorts the
+list by avg speed, top speed, or lifetime races (instead of the order
+you added them), with a gold #1/#2/… rank — a quick way to see who's
+actually fastest among the racers you're tracking.
 
 ### Race Now, right from the panel
 

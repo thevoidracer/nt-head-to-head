@@ -1337,9 +1337,11 @@
               <div class="teams-head-actions">
                 <input type="text" id="teams-search" class="teams-search" placeholder="Search teams…" autocomplete="off" spellcheck="false" />
                 <button type="button" id="team-finder-btn" class="team-finder-btn" title="Rank tracked teams against your own avg speed">Find teams for me</button>
+                <button type="button" id="team-leaderboard-btn" class="team-finder-btn" title="Rank the teams currently shown by their real race performance">🏆 Leaderboard</button>
               </div>
             </div>
             <div id="team-finder-note" class="team-finder-note" hidden></div>
+            <div id="team-leaderboard-note" class="team-finder-note" hidden></div>
             <div class="teams-filters">
               <label class="teams-filter">
                 <span>Sort</span>
@@ -1389,6 +1391,15 @@
                 <button type="button" id="racer-dash-refresh" class="team-finder-btn">Refresh</button>
               </div>
             </div>
+            <label class="teams-filter racer-dash-sort-field">
+              <span>Leaderboard</span>
+              <select id="racer-dash-sort">
+                <option value="added">Order added</option>
+                <option value="speed">Avg speed</option>
+                <option value="top">Top speed</option>
+                <option value="races">Lifetime races</option>
+              </select>
+            </label>
             <div id="racers-dash-list" class="racers-dash-list"></div>
           </div>
 
@@ -1439,6 +1450,8 @@
       teamsSearch: root.getElementById("teams-search"),
       teamFinderBtn: root.getElementById("team-finder-btn"),
       teamFinderNote: root.getElementById("team-finder-note"),
+      teamLeaderboardBtn: root.getElementById("team-leaderboard-btn"),
+      teamLeaderboardNote: root.getElementById("team-leaderboard-note"),
       teamsSort: root.getElementById("teams-sort"),
       teamsMaxSpeed: root.getElementById("teams-max-speed"),
       teamsMaxRaces: root.getElementById("teams-max-races"),
@@ -1453,6 +1466,7 @@
       racerDashInput: root.getElementById("racer-dash-input"),
       racerDashAdd: root.getElementById("racer-dash-add"),
       racerDashRefresh: root.getElementById("racer-dash-refresh"),
+      racerDashSort: root.getElementById("racer-dash-sort"),
       racersDashList: root.getElementById("racers-dash-list"),
       viewToday: root.getElementById("view-today"),
       todayBody: root.getElementById("today-body"),
@@ -1716,20 +1730,35 @@
       }
       els.racersDashList.innerHTML = `<div class="teams-empty">Loading…</div>`;
       const results = await Promise.allSettled(usernames.map((u) => NT.fetchRacer(u)));
-      const rows = results
-        .map((r, i) => {
-          if (r.status !== "fulfilled") {
+      let entries = results.map((r, i) => ({ username: usernames[i], racer: r.status === "fulfilled" ? r.value : null }));
+      // Ranking mode (anything but "order added") puts the loaded racers on
+      // top, best metric first, with any that failed to load pushed to the
+      // bottom — a #1 crown only makes sense once there's an actual order.
+      const sortBy = els.racerDashSort.value;
+      const METRIC = { speed: (r) => r.avgSpeed || 0, top: (r) => r.highestSpeed || 0, races: (r) => r.racesPlayed || 0 };
+      if (METRIC[sortBy]) {
+        entries = entries.slice().sort((a, b) => {
+          if (!a.racer && !b.racer) return 0;
+          if (!a.racer) return 1;
+          if (!b.racer) return -1;
+          return METRIC[sortBy](b.racer) - METRIC[sortBy](a.racer);
+        });
+      }
+      const ranking = Boolean(METRIC[sortBy]);
+      const rows = entries
+        .map(({ username, racer }, i) => {
+          if (!racer) {
             return `
               <div class="racer-dash-row racer-dash-row-error">
-                <span>${escapeHtml(usernames[i])}</span>
+                <span>${escapeHtml(username)}</span>
                 <span class="teams-empty">Couldn't load</span>
-                <button type="button" class="racer-dash-remove" data-u="${escapeHtml(usernames[i])}" title="Remove">✕</button>
+                <button type="button" class="racer-dash-remove" data-u="${escapeHtml(username)}" title="Remove">✕</button>
               </div>`;
           }
-          const racer = r.value;
+          const rank = ranking ? `<span class="racer-dash-rank">#${i + 1}</span>` : "";
           return `
             <div class="racer-dash-row">
-              <span class="racer-dash-name">${escapeHtml(racer.displayName)}${racer.tag ? ` <span class="racer-dash-tag">[${escapeHtml(racer.tag)}]</span>` : ""}</span>
+              <span class="racer-dash-name">${rank}${escapeHtml(racer.displayName)}${racer.tag ? ` <span class="racer-dash-tag">[${escapeHtml(racer.tag)}]</span>` : ""}</span>
               <span>${racer.avgSpeed} wpm avg</span>
               <span>${racer.highestSpeed} wpm top</span>
               <span>${racer.racesPlayed.toLocaleString()} races</span>
@@ -1743,6 +1772,7 @@
         </div>
         ${rows}`;
     }
+    els.racerDashSort.addEventListener("change", refreshRacerDash);
     els.racerDashAdd.addEventListener("click", async () => {
       const u = els.racerDashInput.value.trim();
       if (!u) return;
@@ -1943,6 +1973,21 @@
       "speed-desc": (a, b) => (b.minSpeed ?? 0) - (a.minSpeed ?? 0),
     };
 
+    // Live-fetched performance stats for the current leaderboard ranking —
+    // see the "🏆 Leaderboard" button below. Nitro Type doesn't publish a
+    // full list of every team, so this only ever ranks the teams this
+    // install already knows about (currently shown, after filters), never
+    // the whole game — that caveat is spelled out in the note shown with
+    // it, rather than claiming a "global" leaderboard this data can't back.
+    let leaderboardResults = null; // tag -> { speed, points, accuracy } | null
+
+    function exitLeaderboard() {
+      if (!leaderboardResults) return;
+      leaderboardResults = null;
+      els.teamLeaderboardBtn.textContent = "🏆 Leaderboard";
+      els.teamLeaderboardNote.hidden = true;
+    }
+
     function renderTeamsList() {
       const q = els.teamsSearch.value.trim().toLowerCase();
       const maxSpeed = els.teamsMaxSpeed.value === "" ? null : Number(els.teamsMaxSpeed.value);
@@ -1959,6 +2004,31 @@
         .sort(TEAM_SORTERS[sortBy] || TEAM_SORTERS.tag);
       const filtered = q || maxSpeed !== null || maxRaces !== null || minMembers !== null;
       const watchedCount = WatchList.list().length;
+
+      if (leaderboardResults) {
+        const ranked = items
+          .map((t) => ({ t, stats: leaderboardResults[t.tag] }))
+          .filter((x) => x.stats)
+          .sort((a, b) => (b.stats.speed || 0) - (a.stats.speed || 0));
+        els.teamsCount.textContent = `${ranked.length} ranked (of ${items.length} shown)`;
+        els.teamsList.innerHTML = ranked.length
+          ? ranked
+              .map(({ t, stats }, i) => {
+                const color = t.color ? `#${t.color}` : "var(--nt-gold)";
+                return `
+                  <div class="team-card team-card-ranked" data-tag="${escapeHtml(t.tag)}" style="--team-color:${color}" tabindex="0" role="button">
+                    <div class="team-card-rank">#${i + 1}</div>
+                    <div class="team-card-head"><span class="team-card-tag" style="color:${color}">[${escapeHtml(t.tag)}]</span> <span class="team-card-name">${escapeHtml(t.name)}</span></div>
+                    <div class="team-card-row">Avg speed: <b>${stats.speed} wpm</b> · Points: <b>${Math.round(stats.points).toLocaleString()}</b> · Accuracy: <b>${stats.accuracy}%</b></div>
+                    <div class="team-card-row">Members: <b>${t.members ?? "—"}</b></div>
+                    <div class="team-card-foot"><span class="team-card-link">View roster</span></div>
+                  </div>`;
+              })
+              .join("")
+          : `<div class="teams-empty">None of these teams had recent race data to rank.</div>`;
+        return;
+      }
+
       els.teamsCount.textContent =
         (filtered ? `${items.length} of ${all.length} teams tracked` : `${all.length} teams tracked`) +
         (watchedCount ? ` · ${watchedCount} watched` : "");
@@ -1988,9 +2058,16 @@
       if (clearLink) clearLink.addEventListener("click", () => els.teamsFiltersClear.click());
     }
     [els.teamsSearch, els.teamsMaxSpeed, els.teamsMaxRaces, els.teamsMinMembers].forEach((el) =>
-      el.addEventListener("input", renderTeamsList)
+      el.addEventListener("input", () => {
+        // Changing what's shown invalidates whatever was just ranked.
+        exitLeaderboard();
+        renderTeamsList();
+      })
     );
-    els.teamsSort.addEventListener("change", renderTeamsList);
+    els.teamsSort.addEventListener("change", () => {
+      exitLeaderboard();
+      renderTeamsList();
+    });
     // Event delegation: the star buttons get wiped and recreated on every
     // render, so listen on the stable grid container instead of each card.
     els.teamsList.addEventListener("click", (e) => {
@@ -2021,6 +2098,7 @@
       els.teamsMaxRaces.value = "";
       els.teamsMinMembers.value = "";
       els.teamFinderNote.hidden = true;
+      exitLeaderboard();
       renderTeamsList();
     });
 
@@ -2042,6 +2120,7 @@
         const racer = await NT.fetchRacer(myRacer);
         els.teamsMaxSpeed.value = Math.floor(racer.avgSpeed || 0);
         els.teamsSort.value = "speed-desc";
+        exitLeaderboard();
         renderTeamsList();
         els.teamFinderNote.hidden = false;
         els.teamFinderNote.textContent = `Showing tracked teams you'd already clear the speed requirement for (your avg: ${racer.avgSpeed} wpm), toughest first. Meeting a team's race requirement is still up to how much you play.`;
@@ -2053,6 +2132,66 @@
         els.teamFinderBtn.textContent = "Find teams for me";
       }
     });
+
+    // Leaderboard — ranks whichever teams are currently shown (after
+    // search/filters) by real race performance (season avg speed, with
+    // points/accuracy alongside), live-fetched a couple at a time so it
+    // stays a polite burst rather than hammering NT's API. This is the
+    // teams this install already knows about, not a global ranking —
+    // Nitro Type doesn't publish a full team list to build that from.
+    els.teamLeaderboardBtn.addEventListener("click", async () => {
+      if (leaderboardResults) {
+        exitLeaderboard();
+        renderTeamsList();
+        return;
+      }
+      const q = els.teamsSearch.value.trim().toLowerCase();
+      const maxSpeed = els.teamsMaxSpeed.value === "" ? null : Number(els.teamsMaxSpeed.value);
+      const maxRaces = els.teamsMaxRaces.value === "" ? null : Number(els.teamsMaxRaces.value);
+      const minMembers = els.teamsMinMembers.value === "" ? null : Number(els.teamsMinMembers.value);
+      const candidates = TeamDirectory.list()
+        .filter((t) => !q || t.tag.toLowerCase().includes(q) || t.name.toLowerCase().includes(q))
+        .filter((t) => maxSpeed === null || (t.minSpeed ?? 0) <= maxSpeed)
+        .filter((t) => maxRaces === null || (t.minRaces ?? 0) <= maxRaces)
+        .filter((t) => minMembers === null || (t.members ?? 0) >= minMembers)
+        .slice(0, 25);
+      if (!candidates.length) {
+        els.teamLeaderboardNote.hidden = false;
+        els.teamLeaderboardNote.textContent = "Nothing to rank yet — track a few teams first (run a Compare, or visit a team's page on nitrotype.com).";
+        return;
+      }
+      els.teamLeaderboardBtn.disabled = true;
+      const results = {};
+      let done = 0;
+      const showProgress = () => {
+        els.teamLeaderboardNote.hidden = false;
+        els.teamLeaderboardNote.textContent = `Ranking ${candidates.length} tracked team${candidates.length === 1 ? "" : "s"} by real performance — ${done}/${candidates.length}…`;
+      };
+      showProgress();
+      const queue = candidates.slice();
+      const worker = async () => {
+        while (queue.length) {
+          const t = queue.shift();
+          try {
+            const team = await NT.fetchTeam(t.tag);
+            const board = team.boards?.season || team.boards?.alltime;
+            results[t.tag] = board ? { speed: board.speed, points: board.points, accuracy: board.accuracy } : null;
+          } catch (e) {
+            results[t.tag] = null;
+          }
+          done++;
+          showProgress();
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      };
+      await Promise.all(Array.from({ length: 2 }, worker));
+      leaderboardResults = results;
+      els.teamLeaderboardBtn.disabled = false;
+      els.teamLeaderboardBtn.textContent = "← Back to list";
+      els.teamLeaderboardNote.textContent = `Top tracked teams by avg speed (this season) — ranked from the ${candidates.length} team${candidates.length === 1 ? "" : "s"} currently shown here, not every team in Nitro Type.`;
+      renderTeamsList();
+    });
+
     TeamDirectory.subscribe(() => {
       if (!els.viewTeams.hidden) renderTeamsList();
     });
@@ -2683,6 +2822,10 @@
       display: flex; flex-direction: column; gap: 5px; text-decoration: none; color: inherit;
     }
     .team-card:hover, .team-card:focus-visible { background: var(--nt-panel-raised); border-color: var(--nt-gold); outline: none; }
+    .team-card-ranked { padding-left: 46px; }
+    .team-card-rank {
+      position: absolute; left: 14px; top: 16px; font-weight: 800; font-size: 15px; color: var(--nt-gold);
+    }
     .team-card-watch {
       position: absolute; top: 10px; right: 10px; background: none; border: none;
       color: var(--nt-dim); font-size: 17px; line-height: 1; cursor: pointer; padding: 2px;
@@ -2710,6 +2853,12 @@
     .racer-dash-row { background: var(--nt-panel); border: 1px solid var(--nt-line); }
     .racer-dash-row-error { color: var(--nt-dim); }
     .racer-dash-name { font-weight: 700; }
+    .racer-dash-rank { color: var(--nt-gold); font-weight: 800; margin-right: 6px; }
+    .racer-dash-sort-field { margin: 0 0 10px; max-width: 220px; }
+    .racer-dash-sort-field select {
+      background: var(--nt-bg); border: 1px solid var(--nt-line); color: var(--nt-text);
+      border-radius: 6px; padding: 6px 8px; font-size: 12px; font-family: inherit; text-transform: none;
+    }
     .racer-dash-tag { color: var(--nt-gold); font-weight: 700; font-size: 11px; }
     .racer-dash-remove { background: none; border: none; color: var(--nt-dim); cursor: pointer; font-size: 13px; padding: 2px; }
     .racer-dash-remove:hover { color: #ff6b63; }
