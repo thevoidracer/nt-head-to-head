@@ -1105,29 +1105,31 @@
 
     const clone = li.cloneNode(true);
     clone.id = NAV_TAB_ID;
+    clone.style.position = "relative";
     const link = clone.querySelector("a") || clone;
     link.removeAttribute("href");
     link.style.cursor = "pointer";
     link.setAttribute("role", "button");
     // Keep whatever wrapper markup NT uses, just swap the visible label —
-    // as its own text node plus a badge span, so the unseen-teams counter
-    // (see updateNavBadge below) has somewhere to live without us having
-    // to re-clone or re-style NT's own nav markup.
+    // plain text, no emoji — plus a streak number and a notification dot,
+    // so the unseen-teams signal (see updateNavBadge below) has somewhere
+    // to live without us having to re-clone or re-style NT's own nav markup.
     const labelNode = link.querySelector("span") || link;
     labelNode.textContent = "";
-    labelNode.append("⚡ TypeTrack");
+    labelNode.append("TypeTrack");
     const streakSpan = document.createElement("span");
     streakSpan.id = "ntcmp-nav-streak";
-    streakSpan.style.cssText = "display:inline-block;margin-left:6px;font-size:11px;font-weight:800;";
+    streakSpan.style.cssText = "display:inline-block;margin-left:6px;font-size:11px;font-weight:800;color:#f0c75e;";
     streakSpan.hidden = true;
     labelNode.append(streakSpan);
+    // A plain notification dot — top-left corner of the whole tab, not a
+    // numbered badge — for the unseen-teams signal.
     const badge = document.createElement("span");
     badge.id = "ntcmp-nav-badge";
     badge.style.cssText =
-      "display:inline-block;margin-left:6px;min-width:16px;padding:1px 5px;border-radius:9px;" +
-      "background:#f0c75e;color:#13223a;font-size:11px;font-weight:800;line-height:1.4;text-align:center;";
+      "position:absolute;top:2px;left:2px;width:8px;height:8px;border-radius:50%;background:#e0393f;";
     badge.hidden = true;
-    labelNode.append(badge);
+    clone.appendChild(badge);
     link.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -1142,15 +1144,16 @@
   function updateNavStreak(n) {
     const el = document.getElementById("ntcmp-nav-streak");
     if (!el) return;
-    el.textContent = `🔥${n}`;
+    el.textContent = String(n);
     el.hidden = !n;
   }
   Progress.subscribe(() => Progress.getStreak().then(updateNavStreak));
 
+  // A plain dot, not a count — it just signals "something's new", with
+  // the actual number still available by opening the Teams tab.
   function updateNavBadge(n) {
     const badge = document.getElementById("ntcmp-nav-badge");
     if (!badge) return;
-    badge.textContent = n > 99 ? "99+" : String(n);
     badge.hidden = n === 0;
   }
   TeamDirectory.subscribe(() => updateNavBadge(TeamDirectory.unseenCount()));
