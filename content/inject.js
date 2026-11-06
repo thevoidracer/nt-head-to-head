@@ -1241,6 +1241,7 @@
               <button class="mode-btn view-btn active" data-view="compare" type="button">Compare</button>
               <button class="mode-btn view-btn" data-view="teams" type="button">Teams</button>
               <button class="mode-btn view-btn" data-view="racers" type="button">Racers</button>
+              <button class="mode-btn view-btn" data-view="today" type="button">Today</button>
             </div>
             <button class="gear-btn" id="gear-btn" aria-label="Settings" title="Set your team &amp; racer">⚙</button>
             <button class="close-btn" id="close-btn" aria-label="Close">✕</button>
@@ -1264,6 +1265,7 @@
               <span>Theme</span>
               <div class="theme-swatches" id="theme-swatches"></div>
             </div>
+            <button type="button" class="settings-invite-btn" id="settings-invite-btn">📋 Share TypeTrack</button>
             <button type="button" class="settings-save" id="settings-save">Save</button>
           </div>
         </header>
@@ -1379,6 +1381,17 @@
             </div>
             <div id="racers-dash-list" class="racers-dash-list"></div>
           </div>
+
+          <div id="view-today" class="view" hidden>
+            <div class="teams-head">
+              <div class="teams-heading">
+                <h2 class="teams-title">Today</h2>
+              </div>
+            </div>
+            <div id="today-body" class="team-detail-body">
+              <div class="teams-empty">Loading…</div>
+            </div>
+          </div>
         </div>
       </div>`;
 
@@ -1430,6 +1443,9 @@
       racerDashAdd: root.getElementById("racer-dash-add"),
       racerDashRefresh: root.getElementById("racer-dash-refresh"),
       racersDashList: root.getElementById("racers-dash-list"),
+      viewToday: root.getElementById("view-today"),
+      todayBody: root.getElementById("today-body"),
+      settingsInviteBtn: root.getElementById("settings-invite-btn"),
       teamsCount: root.getElementById("teams-count"),
       knownTeamsList: root.getElementById("known-teams"),
       form: root.getElementById("compare-form"),
@@ -1516,12 +1532,14 @@
       els.viewTeams.hidden = view !== "teams";
       els.viewTeamDetail.hidden = view !== "team-detail";
       els.viewRacers.hidden = view !== "racers";
+      els.viewToday.hidden = view !== "today";
       if (view === "teams") {
         renderTeamsList();
         els.teamsSearch.focus();
         TeamDirectory.markSeen();
       }
       if (view === "racers") refreshRacerDash();
+      if (view === "today") refreshToday();
     }
     els.viewBtns.forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
 
@@ -1593,6 +1611,40 @@
              ${inactive ? `<div>Quietest member: <b>${escapeHtml(inactive.displayName || inactive.username)}</b> (${inactiveDays}d since last race)</div>` : ""}
            </div>`
         : "";
+      // Lighthearted roster superlatives, captain's team only — reuses the
+      // same played-this-week and day-over-day trend numbers the table
+      // already computes, just surfaced as a fun callout instead of rows.
+      const banterBlock = rosterSnapshot
+        ? (() => {
+            const topWeek = members.reduce((best, m) => ((m.played || 0) > (best?.played || 0) ? m : best), null);
+            let hottest = null;
+            let hottestDelta = 0;
+            members.forEach((m) => {
+              const d = RosterTrend.deltaFor(rosterSnapshot, m.username);
+              if (d !== null && d > hottestDelta) {
+                hottestDelta = d;
+                hottest = m;
+              }
+            });
+            let needsPush = null;
+            let worstGap = 0;
+            if (minRaces) {
+              members.forEach((m) => {
+                const gap = minRaces - (m.played || 0);
+                if (gap > worstGap) {
+                  worstGap = gap;
+                  needsPush = m;
+                }
+              });
+            }
+            const lines = [];
+            if (topWeek && (topWeek.played || 0) > 0) lines.push(`🏆 Top this week: <b>${escapeHtml(topWeek.displayName || topWeek.username)}</b> (${topWeek.played} races)`);
+            if (hottest) lines.push(`🔥 On fire today: <b>${escapeHtml(hottest.displayName || hottest.username)}</b> (+${hottestDelta} today)`);
+            if (needsPush) lines.push(`🎯 Needs a push: <b>${escapeHtml(needsPush.displayName || needsPush.username)}</b> (${worstGap} behind)`);
+            if (!lines.length) return "";
+            return `<div class="team-detail-stats team-banter">${lines.map((l) => `<div>${l}</div>`).join("")}</div>`;
+          })()
+        : "";
       const heatmapBlock =
         activity && activity.hasData
           ? (() => {
@@ -1629,6 +1681,7 @@
           <div>Active (3d): <b>${team.trend?.activeRecentlyCount ?? "—"}</b></div>
         </div>
         ${captainNote}
+        ${banterBlock}
         ${heatmapBlock}
         <table class="team-detail-table">
           <thead><tr><th>Racer</th><th>Races</th>${rosterSnapshot ? "<th>Trend</th><th>Proj. this week</th>" : "<th>Status</th>"}</tr></thead>
@@ -1700,6 +1753,159 @@
     });
     RivalList.subscribe(() => {
       if (!els.viewRacers.hidden) refreshRacerDash();
+    });
+
+    // "Today" tab — a one-glance check-in: today's race count against the
+    // daily goal, the current/best streak, and (if "my team" is set) when
+    // that team tends to race most, straight from data already tracked for
+    // the progress badge and the team activity heatmap. Also hosts the
+    // shareable stat-card export.
+    function utcDateKey(ts) {
+      return new Date(ts).toISOString().slice(0, 10);
+    }
+    // Mirrors background.js's own today/beforeToday comparison exactly, so
+    // this matches whatever the streak logic just credited or broke.
+    function racesToday(snapshots) {
+      if (!snapshots || snapshots.length < 2) return null;
+      const today = utcDateKey(Date.now());
+      const last = snapshots[snapshots.length - 1];
+      if (utcDateKey(last.ts) !== today) return null; // no snapshot taken yet today
+      const beforeToday = [...snapshots].reverse().find((s) => utcDateKey(s.ts) !== today);
+      if (!beforeToday) return null;
+      return Math.max(0, (last.racesPlayed || 0) - (beforeToday.racesPlayed || 0));
+    }
+
+    function fmtHour(h) {
+      return `${h === 0 ? 12 : h > 12 ? h - 12 : h}${h < 12 ? "am" : "pm"}`;
+    }
+
+    async function refreshToday() {
+      els.todayBody.innerHTML = `<div class="teams-empty">Loading…</div>`;
+      const [goal, streak, bestStreak, snapshots] = await Promise.all([
+        Progress.getGoal(),
+        Progress.getStreak(),
+        Progress.getBestStreak(),
+        Progress.list(),
+      ]);
+      await Settings.ready;
+      const { myTeam, myRacer } = Settings.get();
+      const todayCount = racesToday(snapshots);
+
+      if (!myTeam && !myRacer && !snapshots.length) {
+        els.todayBody.innerHTML = `<div class="teams-empty">Set "my team" / "my racer" in ⚙ Settings to start tracking a daily check-in here.</div>`;
+        return;
+      }
+
+      const goalLine = goal
+        ? `<div>Daily goal: <b>${goal}</b> races${todayCount !== null ? ` — <b>${todayCount}</b> so far today` : ""}</div>`
+        : `<div>No daily goal set — add one in ⚙ Settings to start a streak.</div>`;
+      const streakLine =
+        streak || bestStreak
+          ? `<div>🔥 Current streak: <b>${streak}</b> day${streak === 1 ? "" : "s"}${bestStreak > streak ? ` (best: ${bestStreak})` : ""}</div>`
+          : "";
+
+      let teamLine = `<div>Set your team in ⚙ Settings to see its activity here.</div>`;
+      if (myTeam) {
+        try {
+          const activity = await TeamActivity.hourlyBuckets(myTeam);
+          teamLine = activity.hasData
+            ? `<div>Your team [${escapeHtml(myTeam)}] races most around <b>${fmtHour(activity.buckets.indexOf(Math.max(...activity.buckets)))}</b> (your local time)</div>`
+            : `<div>Still gathering [${escapeHtml(myTeam)}]'s activity data — check back in a day or two.</div>`;
+        } catch (e) {
+          teamLine = "";
+        }
+      }
+
+      els.todayBody.innerHTML = `
+        <div class="team-detail-stats">
+          ${goalLine}
+          ${streakLine}
+          ${teamLine}
+        </div>
+        <button type="button" class="team-finder-btn" id="today-share-btn">📷 Share stat card</button>`;
+      const shareBtn = els.todayBody.querySelector("#today-share-btn");
+      if (shareBtn) {
+        shareBtn.addEventListener("click", () => {
+          shareBtn.textContent = "Generating…";
+          generateShareCard({ goal, streak, bestStreak, snapshots, myTeam, myRacer });
+          setTimeout(() => (shareBtn.textContent = "📷 Share stat card"), 1200);
+        });
+      }
+    }
+
+    // Draws a shareable PNG stat card on a plain <canvas> (no external
+    // images, so no CORS concerns) and triggers a download — for posting
+    // progress to a team Discord or elsewhere outside the extension.
+    function generateShareCard({ goal, streak, bestStreak, snapshots, myTeam, myRacer }) {
+      const style = getComputedStyle(document.documentElement);
+      const red = (style.getPropertyValue("--ntcmp-theme-red") || "").trim() || "#d62f3a";
+      const gold = (style.getPropertyValue("--ntcmp-theme-gold") || "").trim() || "#f0c75e";
+      const last = snapshots[snapshots.length - 1] || {};
+      const lifetimeRaces = last.racesPlayed || 0;
+      const avgSpeed = last.avgSpeed || 0;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = 900;
+      canvas.height = 500;
+      const ctx = canvas.getContext("2d");
+
+      const bgGrad = ctx.createLinearGradient(0, 0, 900, 500);
+      bgGrad.addColorStop(0, "#0b1626");
+      bgGrad.addColorStop(1, "#13223a");
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, 900, 500);
+      ctx.strokeStyle = gold;
+      ctx.lineWidth = 8;
+      ctx.strokeRect(12, 12, 876, 476);
+
+      ctx.fillStyle = red;
+      ctx.font = "bold 34px Montserrat, sans-serif";
+      ctx.fillText("⚡ TYPETRACK", 48, 80);
+      ctx.fillStyle = "#f0f4fa";
+      ctx.font = "600 26px Montserrat, sans-serif";
+      ctx.fillText(myRacer || "Racer", 48, 128);
+
+      const stat = (x, y, value, label, color) => {
+        ctx.fillStyle = color;
+        ctx.font = "bold 56px Montserrat, sans-serif";
+        ctx.fillText(String(value), x, y);
+        ctx.fillStyle = "#8fa3bf";
+        ctx.font = "18px Montserrat, sans-serif";
+        ctx.fillText(label, x, y + 28);
+      };
+      stat(48, 240, lifetimeRaces.toLocaleString(), "LIFETIME RACES", gold);
+      stat(470, 240, avgSpeed, "AVG SPEED (WPM)", gold);
+      stat(48, 390, streak || 0, `DAY STREAK${bestStreak ? ` · BEST ${bestStreak}` : ""}`, red);
+      if (myTeam) stat(470, 390, `[${myTeam}]`, "TEAM", "#f0f4fa");
+      else if (goal) stat(470, 390, goal, "DAILY GOAL (RACES)", "#f0f4fa");
+
+      ctx.fillStyle = "#8fa3bf";
+      ctx.font = "16px Montserrat, sans-serif";
+      ctx.fillText("nitrotype.com — tracked with TypeTrack", 48, 460);
+
+      const a = document.createElement("a");
+      a.href = canvas.toDataURL("image/png");
+      a.download = `typetrack-${(myRacer || "stats").replace(/[^a-z0-9_-]/gi, "")}-${Date.now()}.png`;
+      a.click();
+    }
+
+    // Quick-invite — copies an install link + blurb to the clipboard so
+    // it's easy to paste into a team Discord/chat without hunting for the
+    // repo link yourself.
+    els.settingsInviteBtn.addEventListener("click", async () => {
+      const text =
+        "TypeTrack — a free Chrome extension for Nitro Type: compare teams/racers, browse every team you've looked up, " +
+        "a captain's view of your own roster, and on-page alerts, right inside nitrotype.com.\n" +
+        "Download: https://github.com/thevoidracer/nt-head-to-head/archive/refs/heads/main.zip\n" +
+        "Install: unzip it, go to chrome://extensions, turn on Developer mode, click \"Load unpacked\", and pick the folder.";
+      const btn = els.settingsInviteBtn;
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = "✓ Copied!";
+      } catch (e) {
+        btn.textContent = "Couldn't copy — select & copy manually";
+      }
+      setTimeout(() => (btn.textContent = "📋 Share TypeTrack"), 1800);
     });
 
     // Full "Teams" tab — every team this install knows about (seeded +
@@ -2209,6 +2415,7 @@
       if (e.key === "1") setView("compare");
       else if (e.key === "2") setView("teams");
       else if (e.key === "3") setView("racers");
+      else if (e.key === "4") setView("today");
       else if (e.key === "/" && !els.viewTeams.hidden) {
         e.preventDefault();
         els.teamsSearch.focus();
@@ -2339,6 +2546,12 @@
     }
     .settings-save:hover { filter: brightness(1.12); }
     .settings-save:active { box-shadow: inset 0 2px 0 rgba(0,0,0,0.2); }
+    .settings-invite-btn {
+      background: transparent; color: var(--nt-gold); border: 2px solid var(--nt-gold);
+      border-radius: var(--nt-radius-sm); padding: 9px; font-size: 13px; font-weight: 800;
+      cursor: pointer; font-family: inherit;
+    }
+    .settings-invite-btn:hover { background: rgba(240,199,94,0.12); }
 
     .content { width: 100%; max-width: 1180px; margin: 0 auto; padding: 28px 24px 48px; flex: 1; min-height: 0; overflow-y: auto; }
     .compare-inner { max-width: 760px; margin: 0 auto; }

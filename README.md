@@ -11,9 +11,9 @@ Idea and spec by Void Racer. Built with Claude Code.
 Once installed, a **⚡ TypeTrack** tab appears in Nitro Type's own nav
 bar (next to Garage, Season, Shop, etc.) on every nitrotype.com page —
 or press **Alt+T** anywhere on the site. Either one opens a centered,
-rounded card styled to match Nitro Type's own look and feel, with three
-tabs — **1**/**2**/**3** switch between them while the panel is open,
-and **/** jumps to the Teams search box:
+rounded card styled to match Nitro Type's own look and feel, with four
+tabs — **1**/**2**/**3**/**4** switch between them while the panel is
+open, and **/** jumps to the Teams search box:
 
 ### Compare
 
@@ -207,6 +207,29 @@ before it has enough samples to show anything.
 Pick an alternate accent-color palette from the ⚙ settings popover —
 Nitro Red (default), Gold Rush, Blue Steel, or Nitro Green. Applies
 everywhere: the panel and every on-page badge.
+
+### Today — a daily check-in
+
+A fourth panel tab (or press **4**): today's race count against your
+daily goal, your current and best streak, and — if "my team" is set —
+roughly when that team tends to race most, all pulled from data already
+being tracked in the background. A **📷 Share stat card** button here
+exports a styled PNG of your lifetime races, avg speed, streak, and team
+— ready to drop into a team Discord or chat.
+
+### Share TypeTrack with your team
+
+A **📋 Share TypeTrack** button in the ⚙ settings popover copies a short
+install blurb and download link to your clipboard, so inviting teammates
+doesn't mean hunting down this repo's link yourself.
+
+### Team banter
+
+Your own team's detail view adds a few lighthearted superlatives above
+the roster table — top racer this week, who's on fire today, and who
+could use a push — computed from the same trend data the Trend/Proj.
+columns already use, just surfaced as a quick callout instead of having
+to scan the table for them.
 
 ## Install (not on the Chrome Web Store — load it manually)
 
