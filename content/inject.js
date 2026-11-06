@@ -949,7 +949,12 @@
 
   function ensureNavTab() {
     if (document.getElementById(NAV_TAB_ID)) return;
-    const anchor = document.querySelector('a[href="/leaderboards"]');
+    // Scoped to the real top nav specifically — Nitro Type's page now also
+    // has a second, hidden "/leaderboards" link inside an account dropdown
+    // earlier in the DOM, and an unscoped selector was matching that one
+    // instead, so the cloned tab inherited that dropdown's
+    // `visibility: hidden` and was invisible even though it existed.
+    const anchor = document.querySelector('nav.nav a[href="/leaderboards"]');
     const li = anchor && anchor.closest("li");
     if (!li || !li.parentNode) return;
 
