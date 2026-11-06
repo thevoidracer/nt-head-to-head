@@ -1245,12 +1245,13 @@
         <header class="head">
           <span class="logo"><span class="logo-bolt">⚡</span>TYPETRACK</span>
           <div class="head-right">
+            <button type="button" class="my-team-btn" id="my-team-btn" title="Open your team's roster" hidden>My Team</button>
             <a class="race-now-btn" id="race-now-btn" href="https://www.nitrotype.com/race">🏁 Race Now</a>
             <div class="mode-switch view-switch">
-              <button class="mode-btn view-btn active" data-view="compare" type="button">Compare</button>
-              <button class="mode-btn view-btn" data-view="teams" type="button">Teams</button>
-              <button class="mode-btn view-btn" data-view="racers" type="button">Racers</button>
-              <button class="mode-btn view-btn" data-view="today" type="button">Today</button>
+              <button class="mode-btn view-btn active" data-view="compare" type="button"><span class="tab-icon">⇄</span>Compare</button>
+              <button class="mode-btn view-btn" data-view="teams" type="button"><span class="tab-icon">▦</span>Teams</button>
+              <button class="mode-btn view-btn" data-view="racers" type="button"><span class="tab-icon">◎</span>Racers</button>
+              <button class="mode-btn view-btn" data-view="today" type="button"><span class="tab-icon">◷</span>Today</button>
             </div>
             <button class="gear-btn" id="gear-btn" aria-label="Settings" title="Set your team &amp; racer">⚙</button>
             <button class="close-btn" id="close-btn" aria-label="Close">✕</button>
@@ -1415,6 +1416,7 @@
       panel: root.getElementById("panel"),
       gearBtn: root.getElementById("gear-btn"),
       raceNowBtn: root.getElementById("race-now-btn"),
+      myTeamBtn: root.getElementById("my-team-btn"),
       settingsPop: root.getElementById("settings-pop"),
       settingsMyTeam: root.getElementById("settings-my-team"),
       settingsMyRacer: root.getElementById("settings-my-racer"),
@@ -1476,9 +1478,14 @@
     function fillSettingsInputs({ myTeam, myRacer }) {
       els.settingsMyTeam.value = myTeam || "";
       els.settingsMyRacer.value = myRacer || "";
+      els.myTeamBtn.hidden = !myTeam;
     }
     fillSettingsInputs(Settings.get());
     Settings.subscribe(fillSettingsInputs);
+    els.myTeamBtn.addEventListener("click", () => {
+      const { myTeam } = Settings.get();
+      if (myTeam) openTeamDetail(myTeam);
+    });
     els.settingsSave.addEventListener("click", async () => {
       await Settings.setMyTeam(els.settingsMyTeam.value);
       await Settings.setMyRacer(els.settingsMyRacer.value);
@@ -1583,11 +1590,16 @@
       const rows = members
         .map((m) => {
           const name = m.displayName || m.username || "—";
+          const tracked = m.username && RivalList.has(m.username);
+          const trackBtn = m.username
+            ? `<button type="button" class="team-detail-track${tracked ? " active" : ""}" data-u="${escapeHtml(m.username)}" title="${tracked ? "Remove from Racers dashboard" : "Add to Racers dashboard"}">${tracked ? "★" : "☆"}</button>`
+            : "";
           if (!rosterSnapshot) {
             return `
               <tr>
                 <td>${escapeHtml(name)}</td>
                 <td>${m.played ?? 0}</td>
+                <td>${trackBtn}</td>
               </tr>`;
           }
           // Captain view: extra trend + projection columns, available only
@@ -1604,6 +1616,7 @@
               <td>${m.played ?? 0}</td>
               <td class="${trendClass}">${trendLabel}</td>
               <td>${projectedLabel}</td>
+              <td>${trackBtn}</td>
             </tr>`;
         })
         .join("");
@@ -1679,12 +1692,15 @@
         ${banterBlock}
         ${heatmapBlock}
         <table class="team-detail-table">
-          <thead><tr><th>Racer</th><th>Races</th>${rosterSnapshot ? "<th>Trend</th><th>Proj. this week</th>" : ""}</tr></thead>
-          <tbody>${rows || `<tr><td colspan="${rosterSnapshot ? 4 : 2}">No roster data</td></tr>`}</tbody>
+          <thead><tr><th>Racer</th><th>Races</th>${rosterSnapshot ? "<th>Trend</th><th>Proj. this week</th>" : ""}<th></th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="${rosterSnapshot ? 5 : 3}">No roster data</td></tr>`}</tbody>
         </table>
         <a class="team-detail-external" href="https://www.nitrotype.com/team/${encodeURIComponent(team.tag)}" target="_blank" rel="noopener">Open on Nitro Type ↗</a>`;
       const watchBtn = els.teamDetailBody.querySelector("#team-detail-watch");
       if (watchBtn) watchBtn.addEventListener("click", () => WatchList.toggle(team.tag).then(() => openTeamDetail(team.tag)));
+      els.teamDetailBody.querySelectorAll(".team-detail-track").forEach((btn) => {
+        btn.addEventListener("click", () => RivalList.toggle(btn.dataset.u).then(() => openTeamDetail(team.tag)));
+      });
     }
     els.teamDetailBack.addEventListener("click", () => setView("teams"));
 
@@ -1965,7 +1981,11 @@
                 </div>`;
             })
             .join("")
-        : `<div class="teams-empty">No teams match yet — keep comparing or browsing teams on nitrotype.com and this list grows.</div>`;
+        : filtered
+          ? `<div class="teams-empty">No teams match those filters. <button type="button" class="empty-action" id="teams-empty-clear">Clear filters</button></div>`
+          : `<div class="teams-empty">No teams tracked yet — run a Compare, or just visit a team's page on nitrotype.com and it'll show up here.</div>`;
+      const clearLink = els.teamsList.querySelector("#teams-empty-clear");
+      if (clearLink) clearLink.addEventListener("click", () => els.teamsFiltersClear.click());
     }
     [els.teamsSearch, els.teamsMaxSpeed, els.teamsMaxRaces, els.teamsMinMembers].forEach((el) =>
       el.addEventListener("input", renderTeamsList)
@@ -2343,7 +2363,10 @@
       // of the nav dot (the unseen-teams half still clears specifically
       // when the Teams tab itself is opened, via TeamDirectory.markSeen()).
       markVersionSeen().then(refreshNavBadge);
-      // Prefill side A from the current page, same spirit as before.
+      // Prefill side A from the current page, same spirit as before — and
+      // if the current page doesn't give us anything, fall back to your
+      // own team/racer (from Settings) so side A isn't just sitting empty
+      // for a comparison you're about to run anyway.
       const teamMatch = location.pathname.match(/^\/team\/([^/?#]+)/i);
       const racerMatch = location.pathname.match(/^\/racer\/([^/?#]+)/i);
       if (teamMatch && !els.inputA.value) {
@@ -2352,6 +2375,10 @@
       } else if (racerMatch && !els.inputA.value) {
         setMode("racer");
         els.inputA.value = decodeURIComponent(racerMatch[1]);
+      } else if (!els.inputA.value) {
+        const { myTeam, myRacer } = Settings.get();
+        if (state.mode === "team" && myTeam) els.inputA.value = myTeam;
+        else if (state.mode === "racer" && myRacer) els.inputA.value = myRacer;
       }
     }
     function close() {
@@ -2505,6 +2532,7 @@
       border-radius: 999px; cursor: pointer; font-family: inherit;
     }
     .mode-btn.active { background: var(--nt-red); color: #fff; box-shadow: var(--nt-bevel); }
+    .tab-icon { display: inline-block; margin-right: 5px; opacity: 0.85; }
     .race-now-btn {
       display: inline-flex; align-items: center; gap: 5px; background: var(--nt-gold); color: #13223a;
       border-radius: 999px; padding: 8px 14px; font-size: 12.5px; font-weight: 800; text-decoration: none;
@@ -2512,6 +2540,12 @@
     }
     .race-now-btn:hover { filter: brightness(1.08); }
     .race-now-btn:active { box-shadow: inset 0 2px 0 rgba(0,0,0,0.2); }
+    .my-team-btn {
+      display: inline-flex; align-items: center; background: transparent; color: var(--nt-text);
+      border: 1px solid var(--nt-line); border-radius: 999px; padding: 8px 14px;
+      font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .my-team-btn:hover { border-color: var(--nt-gold); color: var(--nt-gold); }
     .gear-btn { background: none; border: none; color: var(--nt-dim); font-size: 17px; cursor: pointer; padding: 2px 6px; }
     .gear-btn:hover { color: var(--nt-text); }
     .close-btn { background: none; border: none; color: var(--nt-dim); font-size: 20px; cursor: pointer; padding: 2px 8px; }
@@ -2664,6 +2698,8 @@
     .team-card-link { color: var(--nt-gold); font-size: 12px; font-weight: 700; }
     .team-card-synced { font-size: 10.5px; color: var(--nt-dim); opacity: 0.75; white-space: nowrap; }
     .teams-empty { grid-column: 1 / -1; font-size: 13px; color: var(--nt-dim); padding: 20px 4px; line-height: 1.6; }
+    .empty-action { background: none; border: none; color: var(--nt-gold); font-size: 13px; font-weight: 700; cursor: pointer; padding: 0; font-family: inherit; }
+    .empty-action:hover { text-decoration: underline; }
 
     .racers-dash-list { display: flex; flex-direction: column; gap: 6px; }
     .racer-dash-head, .racer-dash-row {
@@ -2691,6 +2727,9 @@
     .team-detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .team-detail-table th { text-align: left; color: var(--nt-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; padding: 0 10px 8px; border-bottom: 1px solid var(--nt-line); }
     .team-detail-table td { padding: 7px 10px; border-bottom: 1px solid var(--nt-line); }
+    .team-detail-track { background: none; border: none; color: var(--nt-dim); font-size: 15px; line-height: 1; cursor: pointer; padding: 2px; }
+    .team-detail-track:hover { color: var(--nt-gold); }
+    .team-detail-track.active { color: var(--nt-gold); }
     .team-detail-trend-up { color: #6fcf6f; }
     .team-detail-trend-down { color: #ff7a6e; }
     .team-detail-heatmap { margin-bottom: 18px; }

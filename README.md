@@ -210,6 +210,21 @@ Pick an alternate accent-color palette from the ⚙ settings popover —
 Nitro Red (default), Gold Rush, Blue Steel, or Nitro Green. Applies
 everywhere: the panel and every on-page badge.
 
+### Quicker to use
+
+A few things that cut down on typing and clicking:
+
+- **Smarter auto-fill**: side A on Compare fills in from the page you're
+  on, same as before — but if you're not on a team/racer page, it now
+  falls back to your own team/racer (from ⚙ Settings) by default.
+- **My Team button**: once your team is set, a button next to Race Now
+  jumps straight to your own team's roster from anywhere in the panel.
+- **Track from a roster**: every row in a team's detail view now has a
+  ☆ button to add that racer straight to the Racers dashboard, no
+  copy-pasting their username.
+- **Icon-labeled tabs**: Compare/Teams/Racers/Today each get a small
+  icon next to the label, for a quicker glance at the tab bar.
+
 ### Today — a daily check-in
 
 A fourth panel tab (or press **4**): today's race count against your
