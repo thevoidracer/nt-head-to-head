@@ -207,6 +207,13 @@ there's still no public "every team in the game" endpoint to seed
 from — but as that shared network grows across every TypeTrack
 install, so does this list.
 
+The computed leaderboard itself is also shared, the same way the
+team directory is: opening the tab pulls in whatever other installs
+have already found (so a fresh install can see a big ranked list
+without rebuilding it from nothing), and every **Build / Rebuild**
+contributes its freshly-fetched rows back to that shared pool for
+everyone else.
+
 ### Race Now, right from the panel
 
 A gold **🏁 Race Now** button sits in the panel header, next to the

@@ -88,6 +88,91 @@
   })();
 
   // ---------------------------------------------------------------------
+  // Shared racer leaderboard — the cross-install twin of SharedTeams
+  // above, but for the computed mega-leaderboard rows themselves (one
+  // row per racer: username, team, lifetime races, avg speed) rather
+  // than team summaries. Every install that builds the leaderboard
+  // contributes its freshly-fetched rows here, and every install reads
+  // this table first so it doesn't have to refetch hundreds of team
+  // rosters itself just to see a leaderboard someone else already
+  // built. Backed by its own Supabase table (see the SQL this ships
+  // with) — if that table doesn't exist yet in a given Supabase
+  // project, every call here just fails quietly and the extension
+  // falls back to building the leaderboard locally.
+  // ---------------------------------------------------------------------
+
+  const SharedRacers = (() => {
+    const ENDPOINT = "https://povaenzmktegkgxfbcbi.supabase.co/rest/v1/shared_racers";
+    const KEY = "sb_publishable_xF29hhiE7UvqL0G4oU8-_Q__qL0aHt2";
+    const headers = { apikey: KEY, "Content-Type": "application/json" };
+    const PAGE_SIZE = 1000;
+
+    function toRemote(r) {
+      return {
+        username: r.username,
+        display_name: r.displayName,
+        tag: r.tag,
+        races_played: r.racesPlayed || 0,
+        avg_speed: r.avgSpeed || 0,
+        updated_at: new Date().toISOString(),
+      };
+    }
+
+    function fromRemote(row) {
+      return {
+        username: row.username,
+        displayName: row.display_name || row.username,
+        tag: row.tag,
+        racesPlayed: row.races_played || 0,
+        avgSpeed: row.avg_speed || 0,
+      };
+    }
+
+    // Fire-and-forget, chunked so a leaderboard of several thousand rows
+    // doesn't go out as one giant request. Every install is an anonymous
+    // writer, same as SharedTeams — a flaky connection or a missing table
+    // just means this batch doesn't sync this time, not fatal.
+    async function pushAll(rows) {
+      for (let i = 0; i < rows.length; i += 500) {
+        const chunk = rows.slice(i, i + 500).map(toRemote);
+        try {
+          await fetch(ENDPOINT, {
+            method: "POST",
+            headers: { ...headers, Prefer: "resolution=merge-duplicates,return=minimal" },
+            body: JSON.stringify(chunk),
+          });
+        } catch (e) {
+          // Skip this chunk — not fatal to the rest.
+        }
+        await new Promise((r) => setTimeout(r, 150));
+      }
+    }
+
+    async function pullAll() {
+      const rows = [];
+      let offset = 0;
+      try {
+        while (true) {
+          const res = await fetch(`${ENDPOINT}?select=username,display_name,tag,races_played,avg_speed&order=races_played.desc`, {
+            headers: { ...headers, Range: `${offset}-${offset + PAGE_SIZE - 1}` },
+          });
+          if (!res.ok && res.status !== 206) break;
+          const page = await res.json();
+          if (!Array.isArray(page) || !page.length) break;
+          rows.push(...page);
+          if (page.length < PAGE_SIZE) break;
+          offset += PAGE_SIZE;
+        }
+      } catch (e) {
+        return [];
+      }
+      return rows.map(fromRemote);
+    }
+
+    return { pushAll, pullAll };
+  })();
+
+  // ---------------------------------------------------------------------
   // Team directory — the "known teams" the compare fields autocomplete
   // and the Browse list draw from. Grows two ways: explicitly, every time
   // a team is looked up in the compare form or the roster finder; and
@@ -1851,17 +1936,57 @@
     }
     loadStoredLeaderboard();
 
+    // Merge a fresh batch of rows into whatever's currently held, keeping
+    // whichever copy of a given racer has the higher lifetime race count.
+    // Used both for the shared-network pull (merging in rows other
+    // installs have already found) and for a local rebuild (merging in
+    // this install's own fresh fetch without losing racers only the
+    // shared network or a previous build knew about).
+    function mergeLeaderboardRows(baseRows, newRows) {
+      const byUsername = new Map(baseRows.map((r) => [r.username.toLowerCase(), r]));
+      for (const r of newRows) {
+        if (!r.username) continue;
+        const key = r.username.toLowerCase();
+        const existing = byUsername.get(key);
+        if (!existing || (r.racesPlayed || 0) >= existing.racesPlayed) byUsername.set(key, r);
+      }
+      return Array.from(byUsername.values()).sort((a, b) => b.racesPlayed - a.racesPlayed);
+    }
+
+    // Pulls the leaderboard other installs have already built and shared,
+    // so opening this tab can show a big ranked list instantly instead of
+    // making every install refetch hundreds of team rosters itself. Runs
+    // quietly in the background and re-renders if/when it finds anything
+    // new; if the shared table doesn't exist yet (e.g. the SQL setup
+    // hasn't been run) this just comes back empty and nothing changes.
+    async function syncSharedLeaderboard() {
+      const remoteRows = await SharedRacers.pullAll();
+      if (leaderboardBuilding) return;
+      if (!remoteRows.length) {
+        if (!leaderboard && !els.viewLeaderboard.hidden) {
+          els.leaderboardCount.textContent = "0 racers ranked";
+        }
+        return;
+      }
+      const merged = mergeLeaderboardRows(leaderboard?.rows || [], remoteRows);
+      if (leaderboard && merged.length === leaderboard.rows.length) return; // nothing new
+      leaderboard = { builtAt: leaderboard?.builtAt || Date.now(), teamCount: leaderboard?.teamCount || 0, rows: merged };
+      await storageSet({ "ntcmp:racerLeaderboard": leaderboard });
+      if (!els.viewLeaderboard.hidden) renderLeaderboardPage();
+    }
+
     function refreshLeaderboardView() {
       if (leaderboardBuilding) return;
       if (leaderboard) renderLeaderboardPage();
       else {
-        els.leaderboardCount.textContent = "0 racers ranked";
+        els.leaderboardCount.textContent = "Checking the shared network…";
         els.leaderboardList.innerHTML = "";
         els.leaderboardPagination.hidden = true;
         els.leaderboardNote.hidden = false;
         els.leaderboardNote.textContent =
           "Not built yet — hit \"Build / Rebuild\" to rank every racer on every team this install knows about by lifetime races. The first build can take a little while.";
       }
+      syncSharedLeaderboard();
     }
 
     function renderLeaderboardPage() {
@@ -1965,13 +2090,22 @@
       // Same gentle two-at-a-time pace as the one-time team seeding, since
       // this can mean fetching hundreds of teams' rosters at once.
       await Promise.all(Array.from({ length: 2 }, worker));
-      const rows = Array.from(byUsername.values()).sort((a, b) => b.racesPlayed - a.racesPlayed);
+      const freshRows = Array.from(byUsername.values());
+      // Merge into whatever's already held rather than replacing it —
+      // this install's own fresh fetch shouldn't erase racers the shared
+      // network already knew about from teams this install doesn't
+      // currently track.
+      const rows = mergeLeaderboardRows(leaderboard?.rows || [], freshRows);
       leaderboard = { builtAt: Date.now(), teamCount: teams.length, rows };
       await storageSet({ "ntcmp:racerLeaderboard": leaderboard });
       leaderboardPage = 0;
       leaderboardBuilding = false;
       els.leaderboardBuildBtn.disabled = false;
       renderLeaderboardPage();
+      // Share what this build found with every other install, so the
+      // network keeps growing instead of each install rebuilding the
+      // same thing from scratch. Fire-and-forget — doesn't block the UI.
+      SharedRacers.pushAll(freshRows);
     }
 
     els.leaderboardBuildBtn.addEventListener("click", () => buildLeaderboard());
