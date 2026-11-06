@@ -1992,7 +1992,7 @@
         els.leaderboardPagination.hidden = true;
         els.leaderboardNote.hidden = false;
         els.leaderboardNote.textContent =
-          "Not built yet — hit \"Build / Rebuild\" to rank every racer on every team this install knows about by lifetime races. The first build can take a little while.";
+          "Checking the shared network, and building this in the background if no one's beaten you to it — no need to do anything. Hit \"Build / Rebuild\" any time to refresh it yourself instead of waiting.";
       }
       syncSharedLeaderboard();
     }
@@ -2125,6 +2125,33 @@
       leaderboardPage++;
       renderLeaderboardPage();
     });
+
+    // Keep the leaderboard effectively always-ready rather than making the
+    // first-ever visit to this tab require a manual click: on load, first
+    // check the shared network (another install may have already built
+    // one — nothing to do then), and only if that comes back empty too,
+    // build it automatically in the background, once per install, the
+    // same way the team directory self-seeds on first install. Delayed
+    // well past that seeding (which takes roughly 15-20s for its ~130
+    // teams at this same gentle pace) so the two background jobs don't
+    // compete for Nitro Type's API at the same time, and so this build
+    // benefits from however many extra teams seeding has turned up by
+    // then.
+    (async () => {
+      // Re-await the local load here (harmless if it already finished)
+      // so this always runs after it, never racing it — otherwise a
+      // slow storage read could land after the sync below and clobber
+      // freshly-merged data with a stale cached copy.
+      await loadStoredLeaderboard();
+      await syncSharedLeaderboard();
+      if (leaderboard || leaderboardBuilding) return;
+      const autoBuilt = await storageGet("ntcmp:leaderboardAutoBuilt");
+      if (autoBuilt) return;
+      await storageSet({ "ntcmp:leaderboardAutoBuilt": true });
+      setTimeout(() => {
+        if (!leaderboard && !leaderboardBuilding) buildLeaderboard();
+      }, 20000);
+    })();
 
     // "Today" tab — a one-glance check-in: today's race count against the
     // daily goal, the current/best streak, and (if "my team" is set) when
