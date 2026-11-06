@@ -189,17 +189,23 @@ list by avg speed, top speed, or lifetime races (instead of the order
 you added them), with a gold #1/#2/… rank — a quick way to see who's
 actually fastest among the racers you're tracking.
 
-**🏆 All Racers** goes further: it ranks every racer on every tracked
-team by all-time (lifetime) races — not just the few you've added
-above. Nitro Type's own team data already includes each member's
-lifetime race count, so building this only costs one request per
-*team* (reusing whatever teams this install has tracked), not one per
-racer. Results are paged 100 at a time rather than one long scroll,
-and a **🔄 Rebuild** button re-fetches everything for an up-to-date
-ranking whenever you want it. As with the Teams leaderboard, this
-ranks the racers on tracked teams, not every racer in Nitro Type —
-there's no public list of every team to build a truly global one
-from.
+### 🏆 Leaderboard tab — the mega leaderboard
+
+A fifth panel tab on its own, separate from the Racers dashboard
+above: ranks every racer on every team this install knows about — your
+own tracked teams plus the whole shared TypeTrack team network — by
+all-time (lifetime) races, from the very best down to the newest
+racer with just a handful of races. Nitro Type's own team data already
+includes each member's lifetime race count, so building this only
+costs one request per *team*, not one per racer — scraping thousands
+of individual racer profiles would be far too slow and far too much
+load on Nitro Type's API. Hit **🔄 Build / Rebuild** to fetch
+everything fresh; results are paged 100 at a time rather than one
+long scroll. This ranks racers on every team the shared network has
+seen, not literally every racer who has ever played Nitro Type —
+there's still no public "every team in the game" endpoint to seed
+from — but as that shared network grows across every TypeTrack
+install, so does this list.
 
 ### Race Now, right from the panel
 
@@ -247,12 +253,13 @@ A few things that cut down on typing and clicking:
 - **Track from a roster**: every row in a team's detail view now has a
   ☆ button to add that racer straight to the Racers dashboard, no
   copy-pasting their username.
-- **Icon-labeled tabs**: Compare/Teams/Racers/Today each get a small
-  icon next to the label, for a quicker glance at the tab bar.
+- **Icon-labeled tabs**: Compare/Teams/Racers/Today/Leaderboard each
+  get a small icon next to the label, for a quicker glance at the tab
+  bar.
 
 ### Today — a daily check-in
 
-A fourth panel tab (or press **4**): today's race count against your
+A panel tab (or press **4**): today's race count against your
 daily goal, your current and best streak, and — if "my team" is set —
 roughly when that team tends to race most, all pulled from data already
 being tracked in the background. A **📷 Share stat card** button here
