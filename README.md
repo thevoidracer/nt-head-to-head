@@ -189,6 +189,18 @@ list by avg speed, top speed, or lifetime races (instead of the order
 you added them), with a gold #1/#2/… rank — a quick way to see who's
 actually fastest among the racers you're tracking.
 
+**🏆 All Racers** goes further: it ranks every racer on every tracked
+team by all-time (lifetime) races — not just the few you've added
+above. Nitro Type's own team data already includes each member's
+lifetime race count, so building this only costs one request per
+*team* (reusing whatever teams this install has tracked), not one per
+racer. Results are paged 100 at a time rather than one long scroll,
+and a **🔄 Rebuild** button re-fetches everything for an up-to-date
+ranking whenever you want it. As with the Teams leaderboard, this
+ranks the racers on tracked teams, not every racer in Nitro Type —
+there's no public list of every team to build a truly global one
+from.
+
 ### Race Now, right from the panel
 
 A gold **🏁 Race Now** button sits in the panel header, next to the

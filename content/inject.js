@@ -1385,13 +1385,18 @@
                 <h2 class="teams-title">Racer dashboard</h2>
                 <div class="teams-count" id="racers-count">0 racers tracked</div>
               </div>
-              <div class="teams-head-actions">
+              <div class="teams-head-actions racer-mode-mine">
                 <input type="text" id="racer-dash-input" class="teams-search" placeholder="Add a racer username…" autocomplete="off" spellcheck="false" />
                 <button type="button" id="racer-dash-add" class="team-finder-btn">Add</button>
                 <button type="button" id="racer-dash-refresh" class="team-finder-btn">Refresh</button>
+                <button type="button" id="racer-leaderboard-btn" class="team-finder-btn">🏆 All Racers</button>
+              </div>
+              <div class="teams-head-actions racer-mode-leaderboard" hidden>
+                <button type="button" id="racer-leaderboard-rebuild" class="team-finder-btn">🔄 Rebuild</button>
+                <button type="button" id="racer-leaderboard-back" class="team-finder-btn">← Back to My Racers</button>
               </div>
             </div>
-            <label class="teams-filter racer-dash-sort-field">
+            <label class="teams-filter racer-dash-sort-field racer-mode-mine">
               <span>Leaderboard</span>
               <select id="racer-dash-sort">
                 <option value="added">Order added</option>
@@ -1400,7 +1405,13 @@
                 <option value="races">Lifetime races</option>
               </select>
             </label>
+            <div id="racer-leaderboard-note" class="team-finder-note" hidden></div>
             <div id="racers-dash-list" class="racers-dash-list"></div>
+            <div id="racer-leaderboard-pagination" class="racer-leaderboard-pagination" hidden>
+              <button type="button" id="racer-leaderboard-prev" class="team-finder-btn">← Prev</button>
+              <span id="racer-leaderboard-page-label"></span>
+              <button type="button" id="racer-leaderboard-next" class="team-finder-btn">Next →</button>
+            </div>
           </div>
 
           <div id="view-today" class="view" hidden>
@@ -1467,6 +1478,16 @@
       racerDashAdd: root.getElementById("racer-dash-add"),
       racerDashRefresh: root.getElementById("racer-dash-refresh"),
       racerDashSort: root.getElementById("racer-dash-sort"),
+      racerModeMine: root.querySelectorAll(".racer-mode-mine"),
+      racerModeLeaderboard: root.querySelector(".racer-mode-leaderboard"),
+      racerLeaderboardBtn: root.getElementById("racer-leaderboard-btn"),
+      racerLeaderboardRebuild: root.getElementById("racer-leaderboard-rebuild"),
+      racerLeaderboardBack: root.getElementById("racer-leaderboard-back"),
+      racerLeaderboardNote: root.getElementById("racer-leaderboard-note"),
+      racerLeaderboardPagination: root.getElementById("racer-leaderboard-pagination"),
+      racerLeaderboardPrev: root.getElementById("racer-leaderboard-prev"),
+      racerLeaderboardNext: root.getElementById("racer-leaderboard-next"),
+      racerLeaderboardPageLabel: root.getElementById("racer-leaderboard-page-label"),
       racersDashList: root.getElementById("racers-dash-list"),
       viewToday: root.getElementById("view-today"),
       todayBody: root.getElementById("today-body"),
@@ -1568,7 +1589,7 @@
         els.teamsSearch.focus();
         TeamDirectory.markSeen();
       }
-      if (view === "racers") refreshRacerDash();
+      if (view === "racers") setRacersMode(racersMode);
       if (view === "today") refreshToday();
     }
     els.viewBtns.forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
@@ -1793,7 +1814,152 @@
       RivalList.toggle(btn.dataset.u);
     });
     RivalList.subscribe(() => {
-      if (!els.viewRacers.hidden) refreshRacerDash();
+      if (!els.viewRacers.hidden && racersMode === "mine") refreshRacerDash();
+    });
+
+    // Full racer leaderboard — ranks every racer on every tracked team by
+    // all-time (lifetime) races, not just the handful you've added to the
+    // dashboard above. The team API already returns each member's own
+    // lifetime racesPlayed/avgSpeed alongside the roster, so this needs
+    // one request per tracked TEAM (reusing NT.fetchTeam, same as the
+    // Teams tab's own leaderboard), not one per racer — fetching a
+    // thousand individual racer profiles would be far too slow and far
+    // too much load on Nitro Type's API for what this is.
+    const RACER_LB_PAGE_SIZE = 100;
+    let racersMode = "mine"; // "mine" | "leaderboard"
+    let racerLeaderboard = null; // { builtAt, teamCount, rows: [...] }
+    let racerLbPage = 0;
+
+    async function loadStoredRacerLeaderboard() {
+      const stored = await storageGet("ntcmp:racerLeaderboard");
+      if (stored && Array.isArray(stored.rows)) racerLeaderboard = stored;
+    }
+    loadStoredRacerLeaderboard();
+
+    function setRacersMode(mode) {
+      racersMode = mode;
+      els.racerModeMine.forEach((el) => (el.hidden = mode !== "mine"));
+      els.racerModeLeaderboard.hidden = mode !== "leaderboard";
+      if (mode === "mine") {
+        els.racerLeaderboardNote.hidden = true;
+        els.racerLeaderboardPagination.hidden = true;
+        refreshRacerDash();
+      } else if (racerLeaderboard) {
+        renderRacerLeaderboardPage();
+      } else {
+        buildRacerLeaderboard();
+      }
+    }
+
+    function renderRacerLeaderboardPage() {
+      if (!racerLeaderboard) return;
+      const rows = racerLeaderboard.rows;
+      const totalPages = Math.max(1, Math.ceil(rows.length / RACER_LB_PAGE_SIZE));
+      racerLbPage = Math.min(Math.max(0, racerLbPage), totalPages - 1);
+      const start = racerLbPage * RACER_LB_PAGE_SIZE;
+      const pageRows = rows.slice(start, start + RACER_LB_PAGE_SIZE);
+      els.racersCount.textContent = `${rows.length.toLocaleString()} racer${rows.length === 1 ? "" : "s"} ranked`;
+      els.racersDashList.innerHTML = rows.length
+        ? `
+          <div class="racer-dash-head racer-lb-row">
+            <span>#</span><span>Racer</span><span>Team</span><span>Avg speed</span><span>Lifetime races</span>
+          </div>
+          ${pageRows
+            .map(
+              (r, i) => `
+            <div class="racer-dash-row racer-lb-row">
+              <span class="racer-dash-rank">#${start + i + 1}</span>
+              <span class="racer-dash-name">${escapeHtml(r.displayName)}</span>
+              <span class="racer-dash-tag">[${escapeHtml(r.tag)}]</span>
+              <span>${r.avgSpeed} wpm</span>
+              <span>${r.racesPlayed.toLocaleString()}</span>
+            </div>`
+            )
+            .join("")}`
+        : `<div class="teams-empty">None of the tracked teams returned any roster data.</div>`;
+      els.racerLeaderboardPagination.hidden = rows.length === 0;
+      els.racerLeaderboardPageLabel.textContent = `Page ${racerLbPage + 1} of ${totalPages}`;
+      els.racerLeaderboardPrev.disabled = racerLbPage === 0;
+      els.racerLeaderboardNext.disabled = racerLbPage >= totalPages - 1;
+      els.racerLeaderboardNote.hidden = false;
+      els.racerLeaderboardNote.textContent = `Ranks racers on the ${racerLeaderboard.teamCount} tracked team${racerLeaderboard.teamCount === 1 ? "" : "s"} this install knows about, by all-time races — not every racer in Nitro Type. Built ${fmtSynced(racerLeaderboard.builtAt)}.`;
+    }
+
+    async function buildRacerLeaderboard() {
+      const teams = TeamDirectory.list();
+      if (!teams.length) {
+        els.racersCount.textContent = "0 racers ranked";
+        els.racersDashList.innerHTML = "";
+        els.racerLeaderboardNote.hidden = false;
+        els.racerLeaderboardNote.textContent = "No teams tracked yet — run a Compare, or visit a team's page on nitrotype.com first.";
+        els.racerLeaderboardPagination.hidden = true;
+        return;
+      }
+      els.racerLeaderboardBtn.disabled = true;
+      els.racerLeaderboardRebuild.disabled = true;
+      els.racersDashList.innerHTML = "";
+      els.racerLeaderboardPagination.hidden = true;
+      let done = 0;
+      const showProgress = () => {
+        els.racerLeaderboardNote.hidden = false;
+        els.racerLeaderboardNote.textContent = `Building the racer leaderboard — fetching ${teams.length} tracked team${teams.length === 1 ? "" : "s"}' rosters (${done}/${teams.length})…`;
+      };
+      showProgress();
+      const byUsername = new Map();
+      const queue = teams.slice();
+      const worker = async () => {
+        while (queue.length) {
+          const t = queue.shift();
+          try {
+            const team = await NT.fetchTeam(t.tag);
+            for (const m of team.members || []) {
+              if (!m.username) continue;
+              const key = m.username.toLowerCase();
+              const existing = byUsername.get(key);
+              // A racer can only be on one team at a time in Nitro Type,
+              // but a stale tracked-team record could still disagree with
+              // a fresher one — keep whichever has the higher lifetime
+              // race count, since that's the more recently-accurate read.
+              if (!existing || (m.racesPlayed || 0) >= existing.racesPlayed) {
+                byUsername.set(key, {
+                  username: m.username,
+                  displayName: m.displayName || m.username,
+                  tag: team.tag,
+                  racesPlayed: m.racesPlayed || 0,
+                  avgSpeed: m.avgSpeed || 0,
+                });
+              }
+            }
+          } catch (e) {
+            // Skip a team that failed to load — not fatal to the rest.
+          }
+          done++;
+          showProgress();
+          await new Promise((r) => setTimeout(r, 250));
+        }
+      };
+      // Same gentle two-at-a-time pace as the one-time team seeding, since
+      // this can mean fetching every tracked team's roster at once.
+      await Promise.all(Array.from({ length: 2 }, worker));
+      const rows = Array.from(byUsername.values()).sort((a, b) => b.racesPlayed - a.racesPlayed);
+      racerLeaderboard = { builtAt: Date.now(), teamCount: teams.length, rows };
+      await storageSet({ "ntcmp:racerLeaderboard": racerLeaderboard });
+      racerLbPage = 0;
+      els.racerLeaderboardBtn.disabled = false;
+      els.racerLeaderboardRebuild.disabled = false;
+      renderRacerLeaderboardPage();
+    }
+
+    els.racerLeaderboardBtn.addEventListener("click", () => setRacersMode("leaderboard"));
+    els.racerLeaderboardBack.addEventListener("click", () => setRacersMode("mine"));
+    els.racerLeaderboardRebuild.addEventListener("click", () => buildRacerLeaderboard());
+    els.racerLeaderboardPrev.addEventListener("click", () => {
+      racerLbPage--;
+      renderRacerLeaderboardPage();
+    });
+    els.racerLeaderboardNext.addEventListener("click", () => {
+      racerLbPage++;
+      renderRacerLeaderboardPage();
     });
 
     // "Today" tab — a one-glance check-in: today's race count against the
@@ -2862,6 +3028,11 @@
     .racer-dash-tag { color: var(--nt-gold); font-weight: 700; font-size: 11px; }
     .racer-dash-remove { background: none; border: none; color: var(--nt-dim); cursor: pointer; font-size: 13px; padding: 2px; }
     .racer-dash-remove:hover { color: #ff6b63; }
+    .racer-dash-head.racer-lb-row, .racer-dash-row.racer-lb-row { grid-template-columns: 36px 2fr 70px 90px 110px; }
+    .racer-leaderboard-pagination {
+      display: flex; align-items: center; justify-content: center; gap: 14px;
+      margin-top: 12px; font-size: 12px; color: var(--nt-dim); font-weight: 700;
+    }
 
     .team-detail-back {
       background: none; border: none; color: var(--nt-dim); font-size: 13px; font-weight: 700;
