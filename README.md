@@ -76,14 +76,14 @@ find.
 ### In-panel team detail
 
 Clicking a team card opens its full roster right inside the TypeTrack
-panel — tag, name, member count, requirements, and every member's
-race count and compliance status — without leaving the page or opening
-a new tab. Watch/unwatch the team from here too. If it's your own team,
-the roster table gains two extra columns: **Trend** (races played
-today vs. yesterday, recorded automatically in the background) and
-**Proj. this week** (your current pace projected to the end of the
-week against the race requirement), plus a note on whoever's been
-quietest lately — a captain's view of the roster, not just a snapshot.
+panel — tag, name, member count, requirements, and every member's race
+count — without leaving the page or opening a new tab. Watch/unwatch
+the team from here too. If it's your own team, the roster table gains
+two extra columns: **Trend** (races played today vs. yesterday,
+recorded automatically in the background) and **Proj. this week**
+(your current pace projected to the end of the week), plus a note on
+whoever's been quietest lately — a captain's view of the roster, not
+just a snapshot.
 
 ### Compare history
 
@@ -121,11 +121,14 @@ always sticks. From then on:
 - Click either badge to jump straight into a full, already-run Compare
   with both sides filled in.
 
-### Unseen-teams counter
+### Notification dot
 
-The nav tab shows a small gold counter for how many teams have shown
-up — from your own browsing or from the shared list — since you last
-actually opened the Teams tab. It clears the moment you open it.
+The nav tab shows a small red dot — no number — whenever there's
+something to notice: a team has shown up (from your own browsing or
+the shared list) since you last opened the Teams tab, or the extension
+has updated since you last opened the panel. It clears the moment you
+act on it — opening the Teams tab clears the team half, opening the
+panel at all clears the update half.
 
 ### Watch a team for changes
 
@@ -226,8 +229,8 @@ doesn't mean hunting down this repo's link yourself.
 ### Team banter
 
 Your own team's detail view adds a few lighthearted superlatives above
-the roster table — top racer this week, who's on fire today, and who
-could use a push — computed from the same trend data the Trend/Proj.
+the roster table — top racer this week and who's on fire today —
+computed from the same trend data the Trend/Proj.
 columns already use, just surfaced as a quick callout instead of having
 to scan the table for them.
 

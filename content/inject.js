@@ -1119,11 +1119,16 @@
     labelNode.append("TypeTrack");
     const streakSpan = document.createElement("span");
     streakSpan.id = "ntcmp-nav-streak";
-    streakSpan.style.cssText = "display:inline-block;margin-left:6px;font-size:11px;font-weight:800;color:#f0c75e;";
+    // No explicit `display` here — setting one inline would out-rank the
+    // `hidden` attribute's own UA-stylesheet rule (inline styles always
+    // win), so the "0" text would stay visibly rendered even while
+    // `.hidden` is true. A plain <span> is inline by default anyway.
+    streakSpan.style.cssText = "margin-left:6px;font-size:11px;font-weight:800;color:#f0c75e;";
     streakSpan.hidden = true;
     labelNode.append(streakSpan);
     // A plain notification dot — top-left corner of the whole tab, not a
-    // numbered badge — for the unseen-teams signal.
+    // numbered badge — shown only when there's something new to notice
+    // (an unseen team, or a version update not yet opened).
     const badge = document.createElement("span");
     badge.id = "ntcmp-nav-badge";
     badge.style.cssText =
@@ -1137,7 +1142,7 @@
     });
 
     li.parentNode.insertBefore(clone, li.nextSibling);
-    updateNavBadge(TeamDirectory.unseenCount());
+    refreshNavBadge();
     Progress.getStreak().then(updateNavStreak);
   }
 
@@ -1149,14 +1154,33 @@
   }
   Progress.subscribe(() => Progress.getStreak().then(updateNavStreak));
 
-  // A plain dot, not a count — it just signals "something's new", with
-  // the actual number still available by opening the Teams tab.
-  function updateNavBadge(n) {
+  // The notification dot combines two independent "something's new"
+  // signals: an unseen team (local find or shared-list sync) and a
+  // version update the person hasn't opened the panel since. Either one
+  // on its own is enough to show it; neither shows a count — the dot is
+  // purely a "look here" signal, not a number.
+  const CURRENT_VERSION = chrome.runtime.getManifest().version;
+  async function isUnseenVersion() {
+    const stored = await storageGet("ntcmp:lastSeenVersion");
+    // No stored version yet means this is the very first run ever seen —
+    // nothing to "catch up on", so set today's version as the baseline
+    // quietly rather than flagging day-one as a change.
+    if (stored == null) {
+      await storageSet({ "ntcmp:lastSeenVersion": CURRENT_VERSION });
+      return false;
+    }
+    return stored !== CURRENT_VERSION;
+  }
+  async function markVersionSeen() {
+    await storageSet({ "ntcmp:lastSeenVersion": CURRENT_VERSION });
+  }
+  async function refreshNavBadge() {
     const badge = document.getElementById("ntcmp-nav-badge");
     if (!badge) return;
-    badge.hidden = n === 0;
+    const [unseenTeams, unseenVersion] = await Promise.all([TeamDirectory.unseenCount(), isUnseenVersion()]);
+    badge.hidden = !(unseenTeams > 0 || unseenVersion);
   }
-  TeamDirectory.subscribe(() => updateNavBadge(TeamDirectory.unseenCount()));
+  TeamDirectory.subscribe(() => refreshNavBadge());
 
   let lastCapturedPath = null;
   function onPossibleNavigation() {
@@ -1577,13 +1601,11 @@
       const rows = members
         .map((m) => {
           const name = m.displayName || m.username || "—";
-          const compliant = !minRaces || (m.played || 0) >= minRaces;
           if (!rosterSnapshot) {
             return `
-              <tr class="${compliant ? "" : "team-detail-row-short"}">
+              <tr>
                 <td>${escapeHtml(name)}</td>
-                <td>${m.played ?? 0}${minRaces ? ` / ${minRaces}` : ""}</td>
-                <td>${compliant ? "✓" : "Behind"}</td>
+                <td>${m.played ?? 0}</td>
               </tr>`;
           }
           // Captain view: extra trend + projection columns, available only
@@ -1592,12 +1614,12 @@
           const delta = RosterTrend.deltaFor(rosterSnapshot, m.username);
           const trendLabel = delta === null ? "—" : delta > 0 ? `+${delta} today` : delta < 0 ? `${delta} today` : "No change";
           const trendClass = delta === null ? "" : delta > 0 ? "team-detail-trend-up" : delta < 0 ? "team-detail-trend-down" : "";
-          const projected = minRaces && weekFraction ? Math.round((m.played || 0) / weekFraction) : null;
-          const projectedLabel = projected === null ? "—" : `~${projected}${minRaces ? (projected >= minRaces ? " ✓" : " ✗") : ""}`;
+          const projected = weekFraction ? Math.round((m.played || 0) / weekFraction) : null;
+          const projectedLabel = projected === null ? "—" : `~${projected}`;
           return `
-            <tr class="${compliant ? "" : "team-detail-row-short"}">
+            <tr>
               <td>${escapeHtml(name)}</td>
-              <td>${m.played ?? 0}${minRaces ? ` / ${minRaces}` : ""}</td>
+              <td>${m.played ?? 0}</td>
               <td class="${trendClass}">${trendLabel}</td>
               <td>${projectedLabel}</td>
             </tr>`;
@@ -1629,21 +1651,9 @@
                 hottest = m;
               }
             });
-            let needsPush = null;
-            let worstGap = 0;
-            if (minRaces) {
-              members.forEach((m) => {
-                const gap = minRaces - (m.played || 0);
-                if (gap > worstGap) {
-                  worstGap = gap;
-                  needsPush = m;
-                }
-              });
-            }
             const lines = [];
             if (topWeek && (topWeek.played || 0) > 0) lines.push(`🏆 Top this week: <b>${escapeHtml(topWeek.displayName || topWeek.username)}</b> (${topWeek.played} races)`);
             if (hottest) lines.push(`🔥 On fire today: <b>${escapeHtml(hottest.displayName || hottest.username)}</b> (+${hottestDelta} today)`);
-            if (needsPush) lines.push(`🎯 Needs a push: <b>${escapeHtml(needsPush.displayName || needsPush.username)}</b> (${worstGap} behind)`);
             if (!lines.length) return "";
             return `<div class="team-detail-stats team-banter">${lines.map((l) => `<div>${l}</div>`).join("")}</div>`;
           })()
@@ -1687,8 +1697,8 @@
         ${banterBlock}
         ${heatmapBlock}
         <table class="team-detail-table">
-          <thead><tr><th>Racer</th><th>Races</th>${rosterSnapshot ? "<th>Trend</th><th>Proj. this week</th>" : "<th>Status</th>"}</tr></thead>
-          <tbody>${rows || `<tr><td colspan="${rosterSnapshot ? 4 : 3}">No roster data</td></tr>`}</tbody>
+          <thead><tr><th>Racer</th><th>Races</th>${rosterSnapshot ? "<th>Trend</th><th>Proj. this week</th>" : ""}</tr></thead>
+          <tbody>${rows || `<tr><td colspan="${rosterSnapshot ? 4 : 2}">No roster data</td></tr>`}</tbody>
         </table>
         <a class="team-detail-external" href="https://www.nitrotype.com/team/${encodeURIComponent(team.tag)}" target="_blank" rel="noopener">Open on Nitro Type ↗</a>`;
       const watchBtn = els.teamDetailBody.querySelector("#team-detail-watch");
@@ -2347,6 +2357,10 @@
       state.open = true;
       els.panel.classList.add("open");
       els.backdrop.classList.add("open");
+      // Opening the panel counts as "noticed" for the version-update half
+      // of the nav dot (the unseen-teams half still clears specifically
+      // when the Teams tab itself is opened, via TeamDirectory.markSeen()).
+      markVersionSeen().then(refreshNavBadge);
       // Prefill side A from the current page, same spirit as before.
       const teamMatch = location.pathname.match(/^\/team\/([^/?#]+)/i);
       const racerMatch = location.pathname.match(/^\/racer\/([^/?#]+)/i);
@@ -2695,7 +2709,6 @@
     .team-detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .team-detail-table th { text-align: left; color: var(--nt-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; padding: 0 10px 8px; border-bottom: 1px solid var(--nt-line); }
     .team-detail-table td { padding: 7px 10px; border-bottom: 1px solid var(--nt-line); }
-    .team-detail-row-short td { color: #ff6b63; }
     .team-detail-trend-up { color: #6fcf6f; }
     .team-detail-trend-down { color: #ff7a6e; }
     .team-detail-heatmap { margin-bottom: 18px; }
