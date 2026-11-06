@@ -155,9 +155,8 @@ comparison badges above do, once your team/racer is set:
   history to show, not just today's number.
 - **Daily race goal + streak**: set an optional daily race goal from
   the ⚙ settings popover. Hit it on a given day and your streak ticks
-  up; miss it and it resets. The streak shows both inside your
-  progress badge and as a small 🔥N indicator right on the nav tab,
-  site-wide, so it's visible without opening TypeTrack at all.
+  up; miss it and it resets. The streak shows inside your progress
+  badge and on the panel's Today tab.
 - **Roster compliance, on your own team page**: a floating badge
   replaces the usual comparison badge when you're looking at your own
   team's page, listing exactly which members are currently below the

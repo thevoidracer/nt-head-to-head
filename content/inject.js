@@ -1111,21 +1111,12 @@
     link.style.cursor = "pointer";
     link.setAttribute("role", "button");
     // Keep whatever wrapper markup NT uses, just swap the visible label —
-    // plain text, no emoji — plus a streak number and a notification dot,
-    // so the unseen-teams signal (see updateNavBadge below) has somewhere
-    // to live without us having to re-clone or re-style NT's own nav markup.
+    // plain text, no emoji — plus a notification dot, so the unseen-teams
+    // signal (see updateNavBadge below) has somewhere to live without us
+    // having to re-clone or re-style NT's own nav markup.
     const labelNode = link.querySelector("span") || link;
     labelNode.textContent = "";
     labelNode.append("TypeTrack");
-    const streakSpan = document.createElement("span");
-    streakSpan.id = "ntcmp-nav-streak";
-    // No explicit `display` here — setting one inline would out-rank the
-    // `hidden` attribute's own UA-stylesheet rule (inline styles always
-    // win), so the "0" text would stay visibly rendered even while
-    // `.hidden` is true. A plain <span> is inline by default anyway.
-    streakSpan.style.cssText = "margin-left:6px;font-size:11px;font-weight:800;color:#f0c75e;";
-    streakSpan.hidden = true;
-    labelNode.append(streakSpan);
     // A plain notification dot — top-left corner of the whole tab, not a
     // numbered badge — shown only when there's something new to notice
     // (an unseen team, or a version update not yet opened).
@@ -1143,16 +1134,7 @@
 
     li.parentNode.insertBefore(clone, li.nextSibling);
     refreshNavBadge();
-    Progress.getStreak().then(updateNavStreak);
   }
-
-  function updateNavStreak(n) {
-    const el = document.getElementById("ntcmp-nav-streak");
-    if (!el) return;
-    el.textContent = String(n);
-    el.hidden = !n;
-  }
-  Progress.subscribe(() => Progress.getStreak().then(updateNavStreak));
 
   // The notification dot combines two independent "something's new"
   // signals: an unseen team (local find or shared-list sync) and a
