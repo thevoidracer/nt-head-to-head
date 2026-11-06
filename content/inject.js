@@ -2137,6 +2137,14 @@
     // compete for Nitro Type's API at the same time, and so this build
     // benefits from however many extra teams seeding has turned up by
     // then.
+    // Races played only ever goes up, teams reshuffle, and new racers show
+    // up — so a leaderboard that's never rebuilt slowly goes stale. Rather
+    // than leave that to a manual click, every install also quietly checks
+    // on load whether what it has is more than a few days old and, if so,
+    // rebuilds it in the background (at most once every few days per
+    // install, so this doesn't pile on top of the shared network every
+    // single page load).
+    const LEADERBOARD_STALE_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
     (async () => {
       // Re-await the local load here (harmless if it already finished)
       // so this always runs after it, never racing it — otherwise a
@@ -2144,13 +2152,27 @@
       // freshly-merged data with a stale cached copy.
       await loadStoredLeaderboard();
       await syncSharedLeaderboard();
-      if (leaderboard || leaderboardBuilding) return;
-      const autoBuilt = await storageGet("ntcmp:leaderboardAutoBuilt");
-      if (autoBuilt) return;
-      await storageSet({ "ntcmp:leaderboardAutoBuilt": true });
-      setTimeout(() => {
-        if (!leaderboard && !leaderboardBuilding) buildLeaderboard();
-      }, 20000);
+      if (leaderboardBuilding) return;
+
+      if (!leaderboard) {
+        const autoBuilt = await storageGet("ntcmp:leaderboardAutoBuilt");
+        if (autoBuilt) return;
+        await storageSet({ "ntcmp:leaderboardAutoBuilt": true });
+        setTimeout(() => {
+          if (!leaderboard && !leaderboardBuilding) buildLeaderboard();
+        }, 20000);
+        return;
+      }
+
+      if (Date.now() - leaderboard.builtAt > LEADERBOARD_STALE_MS) {
+        const lastAttempt = (await storageGet("ntcmp:leaderboardLastAutoRebuild")) || 0;
+        if (Date.now() - lastAttempt > LEADERBOARD_STALE_MS) {
+          await storageSet({ "ntcmp:leaderboardLastAutoRebuild": Date.now() });
+          setTimeout(() => {
+            if (!leaderboardBuilding) buildLeaderboard();
+          }, 20000);
+        }
+      }
     })();
 
     // "Today" tab — a one-glance check-in: today's race count against the
