@@ -11,8 +11,11 @@ Idea and spec by Void Racer. Built with Claude Code.
 Once installed, a **⚡ TypeTrack** tab appears in Nitro Type's own nav
 bar (next to Garage, Season, Shop, etc.) on every nitrotype.com page, and
 a red ⚡ button is fixed to the bottom-right corner of every page as a
-guaranteed-visible way in too. Click either one to open a full-page view,
-styled to match Nitro Type's own navy/red/gold look, with two tabs:
+guaranteed-visible way in too (or press **Alt+T** anywhere on the site).
+Click either one to open a centered, rounded card styled to match Nitro
+Type's own look and feel, with three tabs — **1**/**2**/**3** switch
+between them while the panel is open, and **/** jumps to the Teams
+search box:
 
 ### Compare
 
@@ -165,6 +168,48 @@ comparison badges above do, once your team/racer is set:
   into **★ Rival**). Roughly every 30 minutes, the extension compares
   your avg speed to theirs and fires a desktop notification the moment
   the lead flips either way.
+
+### Racers tab — a multi-racer dashboard
+
+A third panel tab beyond Compare and Teams: add any racer's username
+(or use the ☆ Add rival button on a comparison badge — it's the same
+list, up to 8) to see all of them side by side — avg speed, top speed,
+lifetime races — refreshed on demand with a **Refresh** button, rather
+than checking one at a time.
+
+### Race Now, right from the panel
+
+A gold **🏁 Race Now** button sits in the panel header, next to the
+Compare/Teams/Racers switch, and jumps straight to an actual race.
+
+### Export your results
+
+Every Compare result gets an **Export as CSV** link underneath it, for
+sharing a matchup outside the extension. Your own progress badge (on
+your racer page) has a matching **⤓ CSV** button that exports your
+whole recorded snapshot history — date, lifetime races, avg speed, top
+speed, one row per day.
+
+### Milestones
+
+Your progress badge also shows simple milestone badges — 🏁 lifetime
+race-count tiers, ⚡ avg-speed-peak tiers, and 🔥 your best-ever daily
+goal streak — computed straight from the history already being
+recorded, no extra tracking needed.
+
+### Team activity heatmap
+
+On your own team's detail view (click your team's card in the Teams
+tab), a 24-hour strip shows which hours of the day — in your own local
+time — your team races most, built from the same background snapshots
+that power the captain-trend columns. Needs a day or two of tracking
+before it has enough samples to show anything.
+
+### Themes
+
+Pick an alternate accent-color palette from the ⚙ settings popover —
+Nitro Red (default), Gold Rush, Blue Steel, or Nitro Green. Applies
+everywhere: the panel and every on-page badge.
 
 ## Install (not on the Chrome Web Store — load it manually)
 

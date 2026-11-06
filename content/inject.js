@@ -254,6 +254,50 @@
   SharedTeams.pullAll().then((remote) => TeamDirectory.mergeRemote(remote));
 
   // ---------------------------------------------------------------------
+  // Theme — a couple of alternate accent-color palettes, applied as CSS
+  // custom properties on documentElement rather than inside any one shadow
+  // root, so the panel and every badge's own separate shadow root (each
+  // has its own :host) all pick up the same choice automatically, since
+  // custom properties inherit down through the light DOM into shadow
+  // trees from an outer ancestor.
+  // ---------------------------------------------------------------------
+
+  const THEMES = {
+    red: { label: "Nitro Red", red: "#d62f3a", gold: "#f0c75e" },
+    gold: { label: "Gold Rush", red: "#e0982a", gold: "#ffe08a" },
+    blue: { label: "Blue Steel", red: "#1c99f4", gold: "#8fd4ff" },
+    green: { label: "Nitro Green", red: "#2fa84f", gold: "#f0c75e" },
+  };
+  const Theme = (() => {
+    let current = "red";
+    const subscribers = [];
+    function apply(id) {
+      const theme = THEMES[id] || THEMES.red;
+      document.documentElement.style.setProperty("--ntcmp-theme-red", theme.red);
+      document.documentElement.style.setProperty("--ntcmp-theme-gold", theme.gold);
+    }
+    async function load() {
+      current = (await storageGet("ntcmp:theme")) || "red";
+      apply(current);
+    }
+    function get() {
+      return current;
+    }
+    async function set(id) {
+      if (!THEMES[id] || id === current) return;
+      current = id;
+      apply(id);
+      await storageSet({ "ntcmp:theme": id });
+      subscribers.forEach((fn) => fn(id));
+    }
+    function subscribe(fn) {
+      subscribers.push(fn);
+    }
+    load();
+    return { get, set, subscribe, THEMES };
+  })();
+
+  // ---------------------------------------------------------------------
   // Settings — just "my team" and "my racer", so the on-page comparison
   // badges (below) know what to compare whatever you're looking at
   // against. Nothing here is sent anywhere; it's used purely to build the
@@ -390,7 +434,7 @@
   // ---------------------------------------------------------------------
 
   const RivalList = (() => {
-    const MAX_RIVALS = 5;
+    const MAX_RIVALS = 8; // doubles as the racer-dashboard watch list, not just rivals
     let rivals = [];
     const subscribers = [];
 
@@ -461,6 +505,9 @@
     async function getStreak() {
       return (await storageGet("ntcmp:streakCount")) || 0;
     }
+    async function getBestStreak() {
+      return (await storageGet("ntcmp:bestStreak")) || 0;
+    }
     async function setGoal(n) {
       const goal = Math.max(0, Math.round(Number(n) || 0));
       await storageSet({ "ntcmp:dailyGoal": goal });
@@ -483,7 +530,38 @@
       };
     }
 
-    return { list, getGoal, getStreak, setGoal, deltaSince, subscribe };
+    return { list, getGoal, getStreak, getBestStreak, setGoal, deltaSince, subscribe };
+  })();
+
+  // ---------------------------------------------------------------------
+  // Achievements — simple milestone badges computed purely from data the
+  // progress tracker already records (lifetime races, avg-speed peak,
+  // best streak), rather than anything new background.js needs to track.
+  // ---------------------------------------------------------------------
+
+  const RACE_MILESTONES = [100, 500, 1000, 5000, 10000, 25000, 50000];
+  const SPEED_MILESTONES = [60, 80, 100, 120, 140, 160, 180, 200];
+  const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
+  const Achievements = (() => {
+    function highestReached(value, tiers) {
+      let best = null;
+      for (const t of tiers) {
+        if (value >= t) best = t;
+      }
+      return best;
+    }
+    async function summary() {
+      const [snapshots, bestStreak] = await Promise.all([Progress.list(), Progress.getBestStreak()]);
+      if (!snapshots.length) return null;
+      const lifetimeRaces = Math.max(...snapshots.map((s) => s.racesPlayed || 0));
+      const peakSpeed = Math.max(...snapshots.map((s) => s.avgSpeed || 0));
+      const races = highestReached(lifetimeRaces, RACE_MILESTONES);
+      const speed = highestReached(peakSpeed, SPEED_MILESTONES);
+      const streak = highestReached(bestStreak, STREAK_MILESTONES);
+      if (!races && !speed && !streak) return null;
+      return { races, speed, streak, lifetimeRaces, peakSpeed, bestStreak };
+    }
+    return { summary };
   })();
 
   // ---------------------------------------------------------------------
@@ -507,6 +585,32 @@
       return cur.played - prev.played;
     }
     return { forTeam, deltaFor };
+  })();
+
+  // ---------------------------------------------------------------------
+  // Team activity heatmap — buckets the rolling (timestamp, team-wide
+  // total races) log background.js records every ~30 minutes into "which
+  // hour of the day does this team race most", in the viewer's own local
+  // time. Guards against the weekly race-requirement reset (a sudden drop
+  // in the running total) by simply skipping any negative delta rather
+  // than treating it as negative activity.
+  // ---------------------------------------------------------------------
+
+  const TeamActivity = (() => {
+    async function hourlyBuckets(tag) {
+      const all = (await storageGet("ntcmp:teamActivityLog")) || {};
+      const samples = all[tag] || [];
+      const buckets = new Array(24).fill(0);
+      for (let i = 1; i < samples.length; i++) {
+        const delta = samples[i].totalPlayed - samples[i - 1].totalPlayed;
+        if (delta <= 0) continue; // weekly reset or no change — not real activity to bucket
+        const hour = new Date(samples[i].ts).getHours();
+        buckets[hour] += delta;
+      }
+      const hasData = buckets.some((v) => v > 0);
+      return { buckets, hasData, sampleCount: samples.length };
+    }
+    return { hourlyBuckets };
   })();
 
   // ---------------------------------------------------------------------
@@ -611,7 +715,7 @@
     :host, * { box-sizing: border-box; }
     :host {
       --nt-panel: #13223a; --nt-line: #24395c; --nt-text: #f0f4fa;
-      --nt-dim: #8fa3bf; --nt-gold: #f0c75e;
+      --nt-dim: #8fa3bf; --nt-gold: var(--ntcmp-theme-gold, #f0c75e);
       --nt-font: "Montserrat", "Manrope", "Segoe UI", Roboto, system-ui, sans-serif;
       all: initial;
     }
@@ -637,9 +741,21 @@
     .badge-row .diff.neg { color: #ff7a6e; }
     .badge-row .diff.zero { color: var(--nt-dim); }
     .badge-foot { margin-top: 8px; font-size: 11px; color: var(--nt-gold); font-weight: 700; }
+    .badge-foot-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+    .badge-foot-row .badge-foot { margin-top: 0; }
+    .badge-export-btn {
+      background: none; border: 1px solid var(--nt-gold); color: var(--nt-gold); border-radius: 999px;
+      padding: 2px 8px; font-size: 10px; font-weight: 700; cursor: pointer; font-family: var(--nt-font);
+    }
+    .badge-export-btn:hover { background: var(--nt-gold); color: #13223a; }
     .badge-chart { margin-top: 8px; }
     .badge-chart .spark { display: block; width: 100%; height: 40px; }
     .badge-chart-label { font-size: 10px; color: var(--nt-dim); text-align: center; margin-top: 2px; }
+    .badge-milestones { flex-wrap: wrap; justify-content: flex-start; gap: 6px; margin-top: 8px; }
+    .badge-milestones span {
+      background: var(--nt-bg, #0b1626); border: 1px solid var(--nt-gold); color: var(--nt-gold);
+      border-radius: 999px; padding: 3px 8px; font-size: 10.5px; font-weight: 700;
+    }
   `;
 
   // ---------------------------------------------------------------------
@@ -855,14 +971,43 @@
       const speeds = (snapshots || []).slice(-21).map((s) => s.avgSpeed || 0);
       const chart = sparklineSvg(speeds);
       const chartBlock = chart ? `<div class="badge-chart">${chart}<div class="badge-chart-label">Avg speed, last ${speeds.length} snapshots</div></div>` : "";
+      const achievements = await Achievements.summary();
+      const milestoneLine = achievements
+        ? `<div class="badge-row badge-milestones">
+             ${achievements.races ? `<span title="${achievements.lifetimeRaces.toLocaleString()} lifetime races">🏁 ${achievements.races.toLocaleString()}+</span>` : ""}
+             ${achievements.speed ? `<span title="Peak avg speed seen: ${achievements.peakSpeed} wpm">⚡ ${achievements.speed}+ wpm</span>` : ""}
+             ${achievements.streak ? `<span title="Best daily-goal streak: ${achievements.bestStreak} days">🔥 ${achievements.streak}+ day streak</span>` : ""}
+           </div>`
+        : "";
       badge.innerHTML = `
         <div class="badge-head">Your progress</div>
         <div class="badge-verdict">${verdict}</div>
         ${deltaLine}
         ${goalLine}
         ${chartBlock}
-        <div class="badge-foot">Recorded automatically in the background</div>`;
+        ${milestoneLine}
+        <div class="badge-foot-row">
+          <span class="badge-foot">Recorded automatically in the background</span>
+          <button type="button" class="badge-export-btn" id="progress-export-btn" title="Download your snapshot history as a CSV">⤓ CSV</button>
+        </div>`;
       badge.hidden = false;
+      const exportBtn = r.getElementById("progress-export-btn");
+      if (exportBtn) {
+        exportBtn.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const rows = [["Date", "Lifetime races", "Avg speed", "Top speed"]];
+          (snapshots || []).forEach((s) => rows.push([new Date(s.ts).toISOString().slice(0, 10), s.racesPlayed ?? "", s.avgSpeed ?? "", s.highestSpeed ?? ""]));
+          const csv = rows.map((row) => row.join(",")).join("\n");
+          const blob = new Blob([csv], { type: "text/csv" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `typetrack-progress-${Date.now()}.csv`;
+          a.click();
+          URL.revokeObjectURL(url);
+        };
+      }
     }
 
     function hide() {
@@ -1072,7 +1217,7 @@
 
     root.innerHTML = `
       <style>${FONT_FACE_CSS}${PANEL_CSS}</style>
-      <button id="fab" class="fab" aria-label="Open TypeTrack" title="TypeTrack — compare &amp; browse teams">
+      <button id="fab" class="fab" aria-label="Open TypeTrack" title="TypeTrack — compare &amp; browse teams (Alt+T)">
         <span class="fab-bolt">⚡</span>TypeTrack<span class="fab-streak" id="fab-streak" hidden></span><span class="fab-badge" id="fab-badge" hidden></span>
       </button>
       <div class="backdrop" id="backdrop"></div>
@@ -1080,9 +1225,11 @@
         <header class="head">
           <span class="logo"><span class="logo-bolt">⚡</span>TYPETRACK</span>
           <div class="head-right">
+            <a class="race-now-btn" id="race-now-btn" href="https://www.nitrotype.com/race">🏁 Race Now</a>
             <div class="mode-switch view-switch">
               <button class="mode-btn view-btn active" data-view="compare" type="button">Compare</button>
               <button class="mode-btn view-btn" data-view="teams" type="button">Teams</button>
+              <button class="mode-btn view-btn" data-view="racers" type="button">Racers</button>
             </div>
             <button class="gear-btn" id="gear-btn" aria-label="Settings" title="Set your team &amp; racer">⚙</button>
             <button class="close-btn" id="close-btn" aria-label="Close">✕</button>
@@ -1102,6 +1249,10 @@
               <span>Daily race goal (optional)</span>
               <input type="number" id="settings-daily-goal" min="0" placeholder="e.g. 50" autocomplete="off" />
             </label>
+            <div class="settings-field">
+              <span>Theme</span>
+              <div class="theme-swatches" id="theme-swatches"></div>
+            </div>
             <button type="button" class="settings-save" id="settings-save">Save</button>
           </div>
         </header>
@@ -1149,6 +1300,7 @@
               </div>
 
               <div id="status" class="status" hidden></div>
+              <button type="button" id="export-csv-btn" class="history-toggle" hidden>Export as CSV</button>
               <div id="result" class="result" hidden></div>
             </div>
           </div>
@@ -1201,6 +1353,21 @@
               <div class="teams-empty">Loading roster…</div>
             </div>
           </div>
+
+          <div id="view-racers" class="view" hidden>
+            <div class="teams-head">
+              <div class="teams-heading">
+                <h2 class="teams-title">Racer dashboard</h2>
+                <div class="teams-count" id="racers-count">0 racers tracked</div>
+              </div>
+              <div class="teams-head-actions">
+                <input type="text" id="racer-dash-input" class="teams-search" placeholder="Add a racer username…" autocomplete="off" spellcheck="false" />
+                <button type="button" id="racer-dash-add" class="team-finder-btn">Add</button>
+                <button type="button" id="racer-dash-refresh" class="team-finder-btn">Refresh</button>
+              </div>
+            </div>
+            <div id="racers-dash-list" class="racers-dash-list"></div>
+          </div>
         </div>
       </div>`;
 
@@ -1217,10 +1384,12 @@
       backdrop: root.getElementById("backdrop"),
       panel: root.getElementById("panel"),
       gearBtn: root.getElementById("gear-btn"),
+      raceNowBtn: root.getElementById("race-now-btn"),
       settingsPop: root.getElementById("settings-pop"),
       settingsMyTeam: root.getElementById("settings-my-team"),
       settingsMyRacer: root.getElementById("settings-my-racer"),
       settingsDailyGoal: root.getElementById("settings-daily-goal"),
+      themeSwatches: root.getElementById("theme-swatches"),
       settingsSave: root.getElementById("settings-save"),
       closeBtn: root.getElementById("close-btn"),
       viewBtns: root.querySelectorAll(".view-btn"),
@@ -1247,6 +1416,12 @@
       viewTeamDetail: root.getElementById("view-team-detail"),
       teamDetailBack: root.getElementById("team-detail-back"),
       teamDetailBody: root.getElementById("team-detail-body"),
+      viewRacers: root.getElementById("view-racers"),
+      racersCount: root.getElementById("racers-count"),
+      racerDashInput: root.getElementById("racer-dash-input"),
+      racerDashAdd: root.getElementById("racer-dash-add"),
+      racerDashRefresh: root.getElementById("racer-dash-refresh"),
+      racersDashList: root.getElementById("racers-dash-list"),
       teamsCount: root.getElementById("teams-count"),
       knownTeamsList: root.getElementById("known-teams"),
       form: root.getElementById("compare-form"),
@@ -1254,6 +1429,7 @@
       compareHistory: root.getElementById("compare-history"),
       btn: root.querySelector(".compare-btn"),
       status: root.getElementById("status"),
+      exportCsvBtn: root.getElementById("export-csv-btn"),
       result: root.getElementById("result"),
     };
 
@@ -1275,6 +1451,23 @@
       await Settings.setMyRacer(els.settingsMyRacer.value);
       await Progress.setGoal(els.settingsDailyGoal.value);
       els.settingsPop.hidden = true;
+    });
+
+    function renderThemeSwatches() {
+      const active = Theme.get();
+      els.themeSwatches.innerHTML = Object.entries(Theme.THEMES)
+        .map(
+          ([id, t]) => `
+          <button type="button" class="theme-swatch${id === active ? " active" : ""}" data-id="${id}" title="${escapeHtml(t.label)}"
+            style="--swatch-red:${t.red};--swatch-gold:${t.gold}"></button>`
+        )
+        .join("");
+    }
+    renderThemeSwatches();
+    els.themeSwatches.addEventListener("click", (e) => {
+      const btn = e.target.closest(".theme-swatch");
+      if (!btn) return;
+      Theme.set(btn.dataset.id).then(renderThemeSwatches);
     });
 
     // Site-wide streak badge on the fab itself — not just inside the panel —
@@ -1334,11 +1527,13 @@
       els.viewCompare.hidden = view !== "compare";
       els.viewTeams.hidden = view !== "teams";
       els.viewTeamDetail.hidden = view !== "team-detail";
+      els.viewRacers.hidden = view !== "racers";
       if (view === "teams") {
         renderTeamsList();
         els.teamsSearch.focus();
         TeamDirectory.markSeen();
       }
+      if (view === "racers") refreshRacerDash();
     }
     els.viewBtns.forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
 
@@ -1364,6 +1559,7 @@
       await Settings.ready;
       const isMyTeam = Settings.get().myTeam === team.tag;
       const rosterSnapshot = isMyTeam ? await RosterTrend.forTeam(team.tag) : null;
+      const activity = isMyTeam ? await TeamActivity.hourlyBuckets(team.tag) : null;
       const weekStart = team.trend?.weekStart;
       const weekFraction = weekStart ? Math.min(1, Math.max(0.02, (Date.now() - weekStart) / (7 * 86400000))) : null;
       const members = (team.members || [])
@@ -1409,6 +1605,27 @@
              ${inactive ? `<div>Quietest member: <b>${escapeHtml(inactive.displayName || inactive.username)}</b> (${inactiveDays}d since last race)</div>` : ""}
            </div>`
         : "";
+      const heatmapBlock =
+        activity && activity.hasData
+          ? (() => {
+              const max = Math.max(...activity.buckets);
+              const cells = activity.buckets
+                .map((v, h) => {
+                  const intensity = max ? v / max : 0;
+                  const label = `${h === 0 ? 12 : h > 12 ? h - 12 : h}${h < 12 ? "am" : "pm"}`;
+                  return `<div class="heat-cell" style="--heat:${intensity.toFixed(2)}" title="${label}: ${v} races"></div>`;
+                })
+                .join("");
+              return `
+                <div class="team-detail-heatmap">
+                  <div class="team-detail-heatmap-title">When this team races most (your local time)</div>
+                  <div class="heat-row">${cells}</div>
+                  <div class="heat-row-labels"><span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>11pm</span></div>
+                </div>`;
+            })()
+          : isMyTeam
+            ? `<div class="team-detail-heatmap team-detail-heatmap-empty">Still gathering activity data — check back in a day or two.</div>`
+            : "";
       const watching = WatchList.has(team.tag);
       els.teamDetailBody.innerHTML = `
         <div class="team-detail-head">
@@ -1424,6 +1641,7 @@
           <div>Active (3d): <b>${team.trend?.activeRecentlyCount ?? "—"}</b></div>
         </div>
         ${captainNote}
+        ${heatmapBlock}
         <table class="team-detail-table">
           <thead><tr><th>Racer</th><th>Races</th>${rosterSnapshot ? "<th>Trend</th><th>Proj. this week</th>" : "<th>Status</th>"}</tr></thead>
           <tbody>${rows || `<tr><td colspan="${rosterSnapshot ? 4 : 3}">No roster data</td></tr>`}</tbody>
@@ -1433,6 +1651,68 @@
       if (watchBtn) watchBtn.addEventListener("click", () => WatchList.toggle(team.tag).then(() => openTeamDetail(team.tag)));
     }
     els.teamDetailBack.addEventListener("click", () => setView("teams"));
+
+    // Racer dashboard — a glanceable table of every racer on the same
+    // tracked list the "★ Rival" badge button builds (up to 8), fetched
+    // live and shown side by side rather than one notification at a time.
+    async function refreshRacerDash() {
+      const usernames = RivalList.list();
+      els.racersCount.textContent = `${usernames.length} racer${usernames.length === 1 ? "" : "s"} tracked`;
+      if (!usernames.length) {
+        els.racersDashList.innerHTML = `<div class="teams-empty">Nothing tracked yet — add a racer above, or use the ☆ Add rival button on any racer's comparison badge.</div>`;
+        return;
+      }
+      els.racersDashList.innerHTML = `<div class="teams-empty">Loading…</div>`;
+      const results = await Promise.allSettled(usernames.map((u) => NT.fetchRacer(u)));
+      const rows = results
+        .map((r, i) => {
+          if (r.status !== "fulfilled") {
+            return `
+              <div class="racer-dash-row racer-dash-row-error">
+                <span>${escapeHtml(usernames[i])}</span>
+                <span class="teams-empty">Couldn't load</span>
+                <button type="button" class="racer-dash-remove" data-u="${escapeHtml(usernames[i])}" title="Remove">✕</button>
+              </div>`;
+          }
+          const racer = r.value;
+          return `
+            <div class="racer-dash-row">
+              <span class="racer-dash-name">${escapeHtml(racer.displayName)}${racer.tag ? ` <span class="racer-dash-tag">[${escapeHtml(racer.tag)}]</span>` : ""}</span>
+              <span>${racer.avgSpeed} wpm avg</span>
+              <span>${racer.highestSpeed} wpm top</span>
+              <span>${racer.racesPlayed.toLocaleString()} races</span>
+              <button type="button" class="racer-dash-remove" data-u="${escapeHtml(racer.username)}" title="Remove">✕</button>
+            </div>`;
+        })
+        .join("");
+      els.racersDashList.innerHTML = `
+        <div class="racer-dash-head">
+          <span>Racer</span><span>Avg</span><span>Top</span><span>Races</span><span></span>
+        </div>
+        ${rows}`;
+    }
+    els.racerDashAdd.addEventListener("click", async () => {
+      const u = els.racerDashInput.value.trim();
+      if (!u) return;
+      if (RivalList.has(u)) {
+        els.racerDashInput.value = "";
+        return;
+      }
+      await RivalList.toggle(u);
+      els.racerDashInput.value = "";
+    });
+    els.racerDashInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") els.racerDashAdd.click();
+    });
+    els.racerDashRefresh.addEventListener("click", refreshRacerDash);
+    els.racersDashList.addEventListener("click", (e) => {
+      const btn = e.target.closest(".racer-dash-remove");
+      if (!btn) return;
+      RivalList.toggle(btn.dataset.u);
+    });
+    RivalList.subscribe(() => {
+      if (!els.viewRacers.hidden) refreshRacerDash();
+    });
 
     // Full "Teams" tab — every team this install knows about (seeded +
     // auto-grown, see TeamDirectory above), searchable, the same spirit as
@@ -1771,6 +2051,7 @@
         setStatus("");
         els.result.innerHTML = state.mode === "team" ? renderTeams(dataA, dataB) : renderRacers(dataA, dataB);
         els.result.hidden = false;
+        els.exportCsvBtn.hidden = false;
         if (state.mode === "team") {
           TeamDirectory.remember(dataA);
           TeamDirectory.remember(dataB);
@@ -1831,8 +2112,36 @@
         `<div class="history-saved-note">Saved comparison from ${fmtHistoryWhen(entry.ts)} — run Compare again for current numbers.</div>` +
         (entry.mode === "team" ? renderTeams(entry.a, entry.b) : renderRacers(entry.a, entry.b));
       els.result.hidden = false;
+      els.exportCsvBtn.hidden = false;
       els.compareHistory.hidden = true;
     });
+    function csvCell(s) {
+      const str = String(s ?? "");
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    }
+    function downloadText(filename, text, mime) {
+      const blob = new Blob([text], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    els.exportCsvBtn.addEventListener("click", () => {
+      const nameA = els.result.querySelector(".name-cell.a")?.textContent.trim() || "A";
+      const nameB = els.result.querySelector(".name-cell.b")?.textContent.trim() || "B";
+      const rows = [["Stat", nameA, nameB]];
+      els.result.querySelectorAll(".stat-row").forEach((row) => {
+        const label = row.querySelector(".stat-label")?.textContent.trim() || "";
+        const a = row.querySelector(".stat-val.a")?.textContent.trim() || "";
+        const b = row.querySelector(".stat-val.b")?.textContent.trim() || "";
+        rows.push([label, a, b]);
+      });
+      const csv = rows.map((r) => r.map(csvCell).join(",")).join("\n");
+      downloadText(`typetrack-compare-${Date.now()}.csv`, csv, "text/csv");
+    });
+
     CompareHistory.subscribe(() => {
       if (!els.compareHistory.hidden) renderCompareHistory();
     });
@@ -1879,11 +2188,44 @@
       els.form.requestSubmit();
     }
 
+    els.raceNowBtn.addEventListener("click", () => close());
     els.fab.addEventListener("click", toggle);
     els.closeBtn.addEventListener("click", close);
     els.backdrop.addEventListener("click", close);
+
+    // Keyboard shortcuts. This listener sits on the real page's document,
+    // not our shadow root, so every keystroke anywhere on nitrotype.com
+    // passes through it — guard on "not currently typing" (no text input,
+    // textarea, or contenteditable focused, and no modifier NT itself
+    // might use) before treating anything but Escape as ours.
+    function isTyping() {
+      const el = document.activeElement;
+      if (!el) return false;
+      if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable) return true;
+      // Our own panel inputs live inside this shadow root, which
+      // document.activeElement doesn't see into directly — check that too.
+      const active = root.activeElement;
+      return !!active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA");
+    }
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && state.open) close();
+      if (e.key === "Escape" && state.open) {
+        close();
+        return;
+      }
+      // Alt+T toggles the panel open/closed from anywhere on the page.
+      if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === "t" && !isTyping()) {
+        e.preventDefault();
+        toggle();
+        return;
+      }
+      if (!state.open || isTyping()) return;
+      if (e.key === "1") setView("compare");
+      else if (e.key === "2") setView("teams");
+      else if (e.key === "3") setView("racers");
+      else if (e.key === "/" && !els.viewTeams.hidden) {
+        e.preventDefault();
+        els.teamsSearch.focus();
+      }
     });
 
     setMode("team");
@@ -1908,9 +2250,14 @@
       --nt-line: #24395c;
       --nt-text: #f0f4fa;
       --nt-dim: #8fa3bf;
-      --nt-red: #d62f3a;
+      /* Theme-able: set on documentElement by the Theme module below, so
+         every shadow root on the page (the panel, and each badge's own
+         separate shadow root) picks up the same choice without having to
+         be threaded through individually — custom properties inherit
+         across shadow boundaries from an outer ancestor. */
+      --nt-red: var(--ntcmp-theme-red, #d62f3a);
       --nt-red-dim: #3a1414;
-      --nt-gold: #f0c75e;
+      --nt-gold: var(--ntcmp-theme-gold, #f0c75e);
       --nt-font: "Montserrat", "Manrope", "Segoe UI", Roboto, system-ui, sans-serif;
       --nt-radius-lg: 20px;
       --nt-radius: 10px;
@@ -1987,6 +2334,13 @@
       border-radius: 999px; cursor: pointer; font-family: inherit;
     }
     .mode-btn.active { background: var(--nt-red); color: #fff; box-shadow: var(--nt-bevel); }
+    .race-now-btn {
+      display: inline-flex; align-items: center; gap: 5px; background: var(--nt-gold); color: #13223a;
+      border-radius: 999px; padding: 8px 14px; font-size: 12.5px; font-weight: 800; text-decoration: none;
+      box-shadow: var(--nt-bevel); font-family: inherit;
+    }
+    .race-now-btn:hover { filter: brightness(1.08); }
+    .race-now-btn:active { box-shadow: inset 0 2px 0 rgba(0,0,0,0.2); }
     .gear-btn { background: none; border: none; color: var(--nt-dim); font-size: 17px; cursor: pointer; padding: 2px 6px; }
     .gear-btn:hover { color: var(--nt-text); }
     .close-btn { background: none; border: none; color: var(--nt-dim); font-size: 20px; cursor: pointer; padding: 2px 8px; }
@@ -2006,6 +2360,13 @@
       border-radius: 6px; padding: 8px 10px; font-size: 13px; font-family: inherit; text-transform: none;
     }
     .settings-field input:focus { outline: 2px solid var(--nt-red); outline-offset: -1px; }
+    .theme-swatches { display: flex; gap: 8px; }
+    .theme-swatch {
+      width: 26px; height: 26px; border-radius: 50%; cursor: pointer; padding: 0;
+      border: 2px solid transparent;
+      background: linear-gradient(135deg, var(--swatch-red) 50%, var(--swatch-gold) 50%);
+    }
+    .theme-swatch.active { border-color: var(--nt-text); }
     .settings-save {
       background: var(--nt-red); color: #fff; border: none; border-radius: var(--nt-radius-sm);
       padding: 10px; font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit;
@@ -2127,6 +2488,19 @@
     .team-card-synced { font-size: 10.5px; color: var(--nt-dim); opacity: 0.75; white-space: nowrap; }
     .teams-empty { grid-column: 1 / -1; font-size: 13px; color: var(--nt-dim); padding: 20px 4px; line-height: 1.6; }
 
+    .racers-dash-list { display: flex; flex-direction: column; gap: 6px; }
+    .racer-dash-head, .racer-dash-row {
+      display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 28px; gap: 10px; align-items: center;
+      padding: 10px 12px; border-radius: var(--nt-radius-sm); font-size: 13px;
+    }
+    .racer-dash-head { color: var(--nt-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; padding-bottom: 6px; }
+    .racer-dash-row { background: var(--nt-panel); border: 1px solid var(--nt-line); }
+    .racer-dash-row-error { color: var(--nt-dim); }
+    .racer-dash-name { font-weight: 700; }
+    .racer-dash-tag { color: var(--nt-gold); font-weight: 700; font-size: 11px; }
+    .racer-dash-remove { background: none; border: none; color: var(--nt-dim); cursor: pointer; font-size: 13px; padding: 2px; }
+    .racer-dash-remove:hover { color: #ff6b63; }
+
     .team-detail-back {
       background: none; border: none; color: var(--nt-dim); font-size: 13px; font-weight: 700;
       cursor: pointer; padding: 0 0 16px; font-family: inherit;
@@ -2143,6 +2517,15 @@
     .team-detail-row-short td { color: #ff6b63; }
     .team-detail-trend-up { color: #6fcf6f; }
     .team-detail-trend-down { color: #ff7a6e; }
+    .team-detail-heatmap { margin-bottom: 18px; }
+    .team-detail-heatmap-title { font-size: 11px; color: var(--nt-dim); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; margin-bottom: 6px; }
+    .team-detail-heatmap-empty { font-size: 12px; color: var(--nt-dim); }
+    .heat-row { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; }
+    .heat-cell {
+      height: 18px; border-radius: 3px;
+      background: color-mix(in srgb, var(--nt-gold) calc(var(--heat) * 100%), var(--nt-panel));
+    }
+    .heat-row-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--nt-dim); margin-top: 4px; }
     .team-detail-external { display: inline-block; margin-top: 16px; color: var(--nt-gold); font-size: 12.5px; font-weight: 700; text-decoration: none; }
     .team-detail-external:hover { text-decoration: underline; }
 

@@ -140,10 +140,17 @@ async function checkMyProgress() {
     streakLastDate = today;
   }
 
+  // Track the best streak ever reached, separately from the current one,
+  // so a broken streak doesn't erase the milestone of having hit it —
+  // this is what the achievements/milestones feature checks against.
+  const stored2 = await storageGet(["ntcmp:bestStreak"]);
+  const bestStreak = Math.max(stored2["ntcmp:bestStreak"] || 0, streakCount);
+
   await storageSet({
     "ntcmp:progressSnapshots": snapshots,
     "ntcmp:streakCount": streakCount,
     "ntcmp:streakLastDate": streakLastDate,
+    "ntcmp:bestStreak": bestStreak,
   });
 }
 
@@ -171,9 +178,11 @@ async function checkMyRosterSnapshot() {
   const prevForTeam = all[myTeam] || {};
   const today = utcDateKey(Date.now());
   const curMembers = {};
+  let totalPlayed = 0;
   for (const m of team.members || []) {
     if (!m.username) continue;
     curMembers[m.username] = { played: m.played || 0, displayName: m.displayName || m.username };
+    totalPlayed += m.played || 0;
   }
 
   let next;
@@ -186,7 +195,17 @@ async function checkMyRosterSnapshot() {
     next = { prevDate: prevForTeam.curDate || null, prevMembers: prevForTeam.curMembers || {}, curDate: today, curMembers };
   }
   all[myTeam] = next;
-  await storageSet({ "ntcmp:rosterSnapshots": all });
+
+  // A rolling log of (timestamp, team-wide total races) samples at this
+  // same 30-minute cadence, kept separately from the day-over-day roster
+  // snapshot above — this is what the activity-heatmap feature buckets by
+  // hour of day. Capped at ~7 days of samples.
+  const logStored = await storageGet(["ntcmp:teamActivityLog"]);
+  const logAll = logStored["ntcmp:teamActivityLog"] || {};
+  const log = (logAll[myTeam] || []).concat([{ ts: Date.now(), totalPlayed }]).slice(-340);
+  logAll[myTeam] = log;
+
+  await storageSet({ "ntcmp:rosterSnapshots": all, "ntcmp:teamActivityLog": logAll });
 }
 
 // ---------------------------------------------------------------------
