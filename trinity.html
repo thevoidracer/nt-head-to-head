@@ -1,0 +1,2310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Trinity AI — Intelligent Workspace</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-main: #ffffff;
+      --bg-soft: #f8fafc;
+      --bg-card: #ffffff;
+      --border-light: #e2e8f0;
+      --blue-primary: #2563eb;
+      --blue-hover: #1d4ed8;
+      --blue-soft: #eff6ff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      margin: 0;
+      overflow-x: hidden;
+    }
+
+    code, pre { font-family: 'JetBrains Mono', monospace; }
+
+    /* Smooth View Transitions */
+    .view-transition {
+      transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .view-hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(8px);
+      position: absolute;
+      inset: 0;
+    }
+
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* Subtle Hero Gradient */
+    .hero-surface {
+      background: radial-gradient(circle at 15% 15%, #eff6ff 0%, #ffffff 45%),
+                  radial-gradient(circle at 85% 80%, #e0f2fe 0%, #ffffff 50%);
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.85); }
+    }
+    .live-dot { animation: pulseDot 2s infinite ease-in-out; }
+
+    /* Custom Trinity Orbital Research Animations */
+    @keyframes trinitySpinCW {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @keyframes trinitySpinCCW {
+      from { transform: rotate(360deg); }
+      to { transform: rotate(0deg); }
+    }
+    @keyframes trinityCorePulse {
+      0%, 100% { transform: scale(0.92); opacity: 0.85; }
+      50% { transform: scale(1.12); opacity: 1; }
+    }
+    @keyframes cursorBlink {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0; }
+    }
+    .trinity-orbit-cw {
+      transform-origin: 24px 24px;
+      animation: trinitySpinCW 3.2s linear infinite;
+    }
+    .trinity-orbit-ccw {
+      transform-origin: 24px 24px;
+      animation: trinitySpinCCW 4.6s linear infinite;
+    }
+    .trinity-core-pulse {
+      transform-origin: 24px 24px;
+      animation: trinityCorePulse 1.6s ease-in-out infinite;
+    }
+    .streaming-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      background-color: #2563eb;
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: cursorBlink 0.85s infinite;
+    }
+  </style>
+</head>
+<body class="antialiased selection:bg-blue-100 selection:text-blue-900">
+
+  <!-- ========================================================= -->
+  <!-- 1. SMOOTH AUTH / LANDING SCREEN                           -->
+  <!-- ========================================================= -->
+  <div id="authScreen" class="min-h-screen hero-surface flex flex-col justify-between view-transition">
+    <!-- Top Bar -->
+    <header class="w-full max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <!-- Custom Trinity 3-Node Geometric Symbol -->
+        <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-600/20">
+          <svg class="w-5 h-5" viewBox="0 0 32 32" fill="none">
+            <ellipse cx="16" cy="16" rx="11" ry="4.5" transform="rotate(-30 16 16)" stroke="currentColor" stroke-width="2"/>
+            <ellipse cx="16" cy="16" rx="11" ry="4.5" transform="rotate(30 16 16)" stroke="currentColor" stroke-width="2"/>
+            <ellipse cx="16" cy="16" rx="11" ry="4.5" transform="rotate(90 16 16)" stroke="currentColor" stroke-width="2"/>
+            <circle cx="16" cy="16" r="2.6" fill="currentColor"/>
+          </svg>
+        </div>
+        <span class="font-bold text-xl tracking-tight text-slate-900">Trinity <span class="text-blue-600">AI</span></span>
+      </div>
+      <div class="flex items-center gap-2 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-full">
+        <span class="w-2 h-2 rounded-full bg-blue-600 live-dot"></span>
+        Live Research &amp; 56 Connectors Ready
+      </div>
+    </header>
+
+    <!-- Main Center Hero + Auth Card -->
+    <main class="w-full max-w-5xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+      <!-- Left Value Proposition -->
+      <div class="lg:col-span-7 space-y-5">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-medium">
+          Clean Workspace &bull; Verified Web Sources &bull; Adaptive Intelligence
+        </div>
+        <h1 class="text-4xl sm:text-5xl font-bold tracking-tight text-slate-900 leading-[1.12]">
+          An AI workspace that <span class="text-blue-600">reads the web</span> and grows sharper every chat.
+        </h1>
+        <p class="text-slate-600 text-base sm:text-lg leading-relaxed max-w-xl">
+          Organize deep work into dedicated Projects, teach Trinity specialized jobs with reusable Skills, and connect to 56+ AI and workspace tools without unverified noise.
+        </p>
+
+        <!-- Clean Capability Pills -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+          <div class="p-3.5 rounded-xl bg-white border border-slate-200 shadow-xs">
+            <div class="text-blue-600 font-semibold text-sm mb-1">Live Web Research</div>
+            <p class="text-xs text-slate-500">Multi-source search &amp; live page reader with verified citations.</p>
+          </div>
+          <div class="p-3.5 rounded-xl bg-white border border-slate-200 shadow-xs">
+            <div class="text-blue-600 font-semibold text-sm mb-1">56+ Connectors</div>
+            <p class="text-xs text-slate-500">Link Claude, Gemini, Higgsfield, Runway, GitHub &amp; Notion.</p>
+          </div>
+          <div class="p-3.5 rounded-xl bg-white border border-slate-200 shadow-xs">
+            <div class="text-blue-600 font-semibold text-sm mb-1">Custom Skills</div>
+            <p class="text-xs text-slate-500">Train Trinity on repeatable workflows, rubrics, and coding styles.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Auth Card -->
+      <div class="lg:col-span-5">
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-200/60 p-6 sm:p-7">
+          <!-- Segmented Tabs -->
+          <div class="grid grid-cols-2 p-1 bg-slate-100 rounded-xl mb-6">
+            <button id="tabSignIn" onclick="switchAuthMode('signin')" class="py-2 text-sm font-semibold rounded-lg bg-white text-blue-600 shadow-xs transition cursor-pointer">
+              Sign In
+            </button>
+            <button id="tabSignUp" onclick="switchAuthMode('signup')" class="py-2 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer">
+              Create Account
+            </button>
+          </div>
+
+          <!-- Inline Validation Banner -->
+          <div id="authErrorBox" class="hidden mb-4 px-3.5 py-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium"></div>
+
+          <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-4">
+            <div id="nameFieldWrap" class="hidden">
+              <label class="block text-xs font-semibold text-slate-700 mb-1.5">Display Name</label>
+              <input id="authName" type="text" placeholder="Alex Rivera"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1.5">Username or Email</label>
+              <input id="authEmail" type="text" required placeholder="you@example.com" autocomplete="username"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition" />
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-xs font-semibold text-slate-700">Password</label>
+                <button type="button" onclick="togglePasswordPeek()" class="text-xs text-blue-600 hover:underline font-medium cursor-pointer" id="peekBtn">Show</button>
+              </div>
+              <input id="authPassword" type="password" required placeholder="••••••••" autocomplete="current-password"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition" />
+            </div>
+
+            <div class="flex items-center justify-between pt-0.5">
+              <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input id="rememberMeCheck" type="checkbox" checked class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                <span class="text-xs text-slate-600">Keep me signed in on this device</span>
+              </label>
+            </div>
+
+            <button type="submit" id="authSubmitBtn"
+              class="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-semibold text-sm shadow-sm shadow-blue-600/20 transition cursor-pointer">
+              Continue to Workspace
+            </button>
+          </form>
+
+          <!-- Quick Saved Accounts -->
+          <div id="savedAccountsSection" class="hidden mt-5 pt-4 border-t border-slate-100">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">Quick Switch Account</div>
+            <div id="savedAccountsList" class="space-y-1.5"></div>
+          </div>
+
+          <div class="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
+            <span class="text-xs text-slate-500">Just testing?</span>
+            <button type="button" onclick="loginAsGuest()" class="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer">
+              Launch Guest Session &rarr;
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="w-full max-w-6xl mx-auto px-6 py-4 text-center text-xs text-slate-400">
+      Trinity AI &bull; Account-Isolated Storage &bull; Credible Web Grounding Only
+    </footer>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- 2. MAIN WORKSPACE APPLICATION                             -->
+  <!-- ========================================================= -->
+  <div id="appWorkspace" class="view-hidden h-screen flex flex-col bg-white overflow-hidden">
+
+    <!-- TOP NOTIFICATION & STATUS BAR -->
+    <div id="notificationBar" class="w-full bg-blue-50/90 border-b border-blue-100 px-4 py-2 flex items-center justify-between text-xs shrink-0">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white shrink-0">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </span>
+        <span id="liveBannerText" class="text-slate-700 font-medium truncate">
+          Trinity is ready. Research the web, paste a credible URL, or link 56+ connectors.
+        </span>
+      </div>
+
+      <div class="flex items-center gap-3 shrink-0">
+        <!-- Intelligence Level Indicator (Silent Background Memory Counter) -->
+        <div class="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white border border-blue-200 text-blue-700 font-medium" title="Trinity silently learns your preferences after each conversation">
+          <span class="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+          <span>Adaptive IQ: <strong id="adaptiveLevelCount">1</strong></span>
+        </div>
+
+        <!-- Notification Bell Button -->
+        <div class="relative">
+          <button onclick="toggleNotificationDrawer()" class="relative p-1.5 rounded-lg hover:bg-blue-100 text-slate-600 hover:text-blue-700 transition cursor-pointer" title="Activity & Notifications">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+            <span id="notifBadge" class="hidden absolute top-1 right-1 w-2 h-2 rounded-full bg-blue-600"></span>
+          </button>
+
+          <!-- Notification Dropdown Drawer -->
+          <div id="notificationDrawer" class="hidden absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden">
+            <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <span class="font-semibold text-xs text-slate-800">Activity Feed</span>
+              <button onclick="clearNotifications()" class="text-[11px] text-blue-600 hover:underline font-medium cursor-pointer">Clear all</button>
+            </div>
+            <div id="notificationList" class="max-h-64 overflow-y-auto divide-y divide-slate-100 text-xs">
+              <div class="p-4 text-center text-slate-400">No recent notifications</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN BODY (SIDEBAR + CHAT + OPTIONAL CANVAS) -->
+    <div class="flex-1 flex min-h-0 relative">
+
+      <!-- Mobile Sidebar Backdrop -->
+      <div id="sidebarBackdrop" onclick="toggleMobileSidebar(false)" class="hidden fixed inset-0 bg-slate-900/30 z-30 lg:hidden"></div>
+
+      <!-- LEFT SIDEBAR (Clean: New Chat, Chat History, Projects, Skills, Apps) -->
+      <aside id="leftSidebar" class="fixed lg:static inset-y-0 left-0 z-40 w-72 bg-slate-50 border-r border-slate-200 flex flex-col transform -translate-x-full lg:translate-x-0 transition-transform duration-200">
+        <!-- Brand & New Chat -->
+        <div class="p-4 border-b border-slate-200/80 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-2xs">
+                <svg class="w-4 h-4" viewBox="0 0 32 32" fill="none">
+                  <ellipse cx="16" cy="16" rx="11" ry="4.5" transform="rotate(-30 16 16)" stroke="currentColor" stroke-width="2.2"/>
+                  <ellipse cx="16" cy="16" rx="11" ry="4.5" transform="rotate(30 16 16)" stroke="currentColor" stroke-width="2.2"/>
+                  <ellipse cx="16" cy="16" rx="11" ry="4.5" transform="rotate(90 16 16)" stroke="currentColor" stroke-width="2.2"/>
+                  <circle cx="16" cy="16" r="2.6" fill="currentColor"/>
+                </svg>
+              </div>
+              <span class="font-bold text-slate-900 text-sm tracking-tight">Trinity AI</span>
+            </div>
+            <button onclick="toggleMobileSidebar(false)" class="lg:hidden p-1 text-slate-400 hover:text-slate-700">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+
+          <button onclick="startNewChat()" class="w-full py-2.5 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-xs transition cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+            New Chat
+          </button>
+        </div>
+
+        <!-- Primary Navigation Tabs: Chats | Projects | Skills | Apps -->
+        <div class="px-3 pt-3">
+          <div class="grid grid-cols-4 gap-1 p-1 bg-slate-200/70 rounded-xl text-[11px] font-semibold">
+            <button id="navTabChats" onclick="switchSidebarSection('chats')" class="py-1.5 rounded-lg bg-white text-blue-600 shadow-2xs transition cursor-pointer">
+              Chats
+            </button>
+            <button id="navTabProjects" onclick="switchSidebarSection('projects')" class="py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer">
+              Projects
+            </button>
+            <button id="navTabSkills" onclick="switchSidebarSection('skills')" class="py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer">
+              Skills
+            </button>
+            <button id="navTabConnectors" onclick="switchSidebarSection('connectors')" class="py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer">
+              Apps
+            </button>
+          </div>
+        </div>
+
+        <!-- Dynamic Sidebar Section Body -->
+        <div class="flex-1 overflow-y-auto p-3 space-y-2">
+          <!-- SECTION A: CHAT HISTORY -->
+          <div id="sectionChats" class="space-y-1.5">
+            <div class="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Recent Conversations</div>
+            <div id="chatHistoryList" class="space-y-1"></div>
+          </div>
+
+          <!-- SECTION B: PROJECTS (Starts Empty - Zero Fake "General" Project) -->
+          <div id="sectionProjects" class="hidden space-y-2.5">
+            <div class="flex items-center justify-between px-1">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Your Projects</span>
+              <button onclick="openCreateProjectModal()" class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer">
+                + New
+              </button>
+            </div>
+            <div id="projectsList" class="space-y-1.5"></div>
+          </div>
+
+          <!-- SECTION C: SKILLS (Teach Trinity Repeatable Jobs) -->
+          <div id="sectionSkills" class="hidden space-y-2.5">
+            <div class="flex items-center justify-between px-1">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Trained Skills</span>
+              <button onclick="openSkillModal()" class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer">
+                + Teach Skill
+              </button>
+            </div>
+            <p class="px-1 text-[11px] text-slate-500 leading-relaxed">
+              Toggle a Skill on to teach Trinity a specific workflow, tone, or job rule.
+            </p>
+            <div id="skillsList" class="space-y-2"></div>
+          </div>
+
+          <!-- SECTION D: CONNECTORS / APPS SIDEBAR PREVIEW -->
+          <div id="sectionConnectors" class="hidden space-y-2.5">
+            <div class="flex items-center justify-between px-1">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Connected Apps</span>
+              <button onclick="openConnectorsModal()" class="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer">
+                Browse 56+
+              </button>
+            </div>
+            <p class="px-1 text-[11px] text-slate-500 leading-relaxed">
+              Link Claude, Gemini, Higgsfield, Runway, GitHub, Notion, and 50+ tools.
+            </p>
+            <div id="sidebarConnectedList" class="space-y-1.5"></div>
+            <button onclick="openConnectorsModal()" class="w-full py-2 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-xs border border-blue-200 transition cursor-pointer">
+              Open Connectors Directory (56)
+            </button>
+          </div>
+        </div>
+
+        <!-- Bottom User Profile & Settings -->
+        <div class="p-3 border-t border-slate-200 bg-white flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div id="userAvatarBadge" class="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center shrink-0">
+              U
+            </div>
+            <div class="min-w-0">
+              <div id="userDisplayName" class="text-xs font-semibold text-slate-900 truncate">User</div>
+              <div id="userSubLabel" class="text-[11px] text-slate-400 truncate">Local Account</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1">
+            <button onclick="openSettingsModal()" class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition cursor-pointer" title="Settings & API Key">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </button>
+            <button onclick="signOutUser()" class="p-1.5 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 transition cursor-pointer" title="Sign Out">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- CENTER CONVERSATION COLUMN -->
+      <section class="flex-1 flex flex-col min-w-0 bg-white">
+        <!-- Conversation Header -->
+        <div class="h-13 px-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <button onclick="toggleMobileSidebar(true)" class="lg:hidden p-1.5 rounded-lg text-slate-600 hover:bg-slate-100">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+            <h2 id="currentChatTitle" class="font-semibold text-sm text-slate-900 truncate">New Conversation</h2>
+            <span id="activeProjectBadge" class="hidden px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-medium"></span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <!-- Active Skill Indicator Pill -->
+            <button onclick="switchSidebarSection('skills'); toggleMobileSidebar(true);" id="activeSkillHeaderPill" class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition cursor-pointer">
+              <span>Skill:</span>
+              <strong id="activeSkillHeaderName">None</strong>
+            </button>
+            <button onclick="toggleCodePreview()" id="toggleCanvasBtn" class="hidden px-2.5 py-1 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer">
+              Code Preview
+            </button>
+          </div>
+        </div>
+
+        <!-- Messages Feed -->
+        <div id="messagesContainer" class="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6">
+          <!-- Empty Welcome State -->
+          <div id="emptyChatHero" class="max-w-2xl mx-auto pt-8 sm:pt-14 text-center space-y-6">
+            <div class="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-blue-600/25">
+              <svg class="w-8 h-8" viewBox="0 0 32 32" fill="none">
+                <ellipse cx="16" cy="16" rx="11" ry="4.5" transform="rotate(-30 16 16)" stroke="currentColor" stroke-width="2"/>
+                <ellipse cx="16" cy="16" rx="11" ry="4.5" transform="rotate(30 16 16)" stroke="currentColor" stroke-width="2"/>
+                <ellipse cx="16" cy="16" rx="11" ry="4.5" transform="rotate(90 16 16)" stroke="currentColor" stroke-width="2"/>
+                <circle cx="16" cy="16" r="2.8" fill="currentColor"/>
+              </svg>
+            </div>
+            <div class="space-y-2">
+              <h1 id="welcomeGreeting" class="text-2xl sm:text-3xl font-bold text-slate-900">How can I help today?</h1>
+              <p class="text-sm text-slate-500 max-w-md mx-auto">
+                Run live multi-source web research, stream answers in real time, or connect Trinity to 56+ AI and workspace apps.
+              </p>
+            </div>
+
+            <!-- Starter Chips -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-left max-w-xl mx-auto">
+              <button onclick="quickPrompt('Research the latest breakthroughs in fusion energy from official government and university labs.')" class="p-3.5 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 transition cursor-pointer">
+                <div class="text-xs font-semibold text-blue-600 mb-0.5">Live Credible Research</div>
+                <div class="text-xs text-slate-600">Search verified .gov &amp; .edu sources with citations</div>
+              </button>
+              <button onclick="quickPrompt('Activate Freebuff mode and build a clean responsive Pomodoro timer web app in one HTML file.')" class="p-3.5 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 transition cursor-pointer">
+                <div class="text-xs font-semibold text-blue-600 mb-0.5">Freebuff Coder</div>
+                <div class="text-xs text-slate-600">Generate runnable full-file apps with live preview</div>
+              </button>
+              <button onclick="openConnectorsModal()" class="p-3.5 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 transition cursor-pointer">
+                <div class="text-xs font-semibold text-blue-600 mb-0.5">56+ AI Connectors</div>
+                <div class="text-xs text-slate-600">Connect Claude, Gemini, Higgsfield, GitHub &amp; more</div>
+              </button>
+              <button onclick="openSkillModal()" class="p-3.5 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 transition cursor-pointer">
+                <div class="text-xs font-semibold text-blue-600 mb-0.5">Teach Trinity a Skill</div>
+                <div class="text-xs text-slate-600">Create a reusable job persona or grading rubric</div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- UPGRADED CLAUDE-STYLE FLOATING COMPOSER BOX -->
+        <div class="px-3 sm:px-6 pb-4 pt-2 bg-gradient-to-t from-white via-white to-transparent">
+          <div class="max-w-3xl mx-auto">
+            <div class="bg-white border border-slate-300/90 focus-within:border-blue-600 focus-within:ring-4 focus-within:ring-blue-50 rounded-2xl shadow-lg shadow-slate-200/60 transition-all duration-200">
+              
+              <!-- Top Context Strip inside Composer -->
+              <div class="px-3.5 pt-2.5 pb-1 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <!-- Agent Router Mode Pill -->
+                  <button type="button" id="routerModeBtn" onclick="cycleRouterMode()" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-xs font-semibold text-slate-700 hover:text-blue-700 transition cursor-pointer">
+                    <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+                    <span id="routerModeLabel">Auto &bull; Trinity</span>
+                  </button>
+
+                  <!-- Live Web Research Toggle Switch -->
+                  <button type="button" id="webResearchToggleBtn" onclick="toggleWebResearch()" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition cursor-pointer" title="Toggle live multi-source web research">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/>
+                    </svg>
+                    <span id="webResearchLabel">Web Research: ON</span>
+                  </button>
+
+                  <!-- Active Connectors Pill -->
+                  <button type="button" onclick="openConnectorsModal()" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-blue-50 border border-slate-200 text-xs font-medium text-slate-600 hover:text-blue-700 transition cursor-pointer">
+                    <svg class="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                    </svg>
+                    <span>Connectors (<strong id="composerConnectedCount">0</strong>)</span>
+                  </button>
+
+                  <span id="urlDetectedTag" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold">
+                    URL Detected &bull; Live Reader Ready
+                  </span>
+                </div>
+
+                <span class="text-[11px] text-slate-400 hidden sm:inline">Enter to send</span>
+              </div>
+
+              <!-- Main Textarea -->
+              <div class="px-3.5 py-2">
+                <textarea id="promptInput" rows="2" placeholder="Ask Trinity to research anything, paste a credible URL, or run connected AI workflows..."
+                  oninput="handlePromptInput(this)"
+                  onkeydown="handlePromptKeydown(event)"
+                  class="w-full bg-transparent resize-none border-0 focus:outline-none text-sm text-slate-900 placeholder:text-slate-400 leading-relaxed max-h-44"></textarea>
+              </div>
+
+              <!-- Bottom Action Toolbar -->
+              <div class="px-3 py-2 flex items-center justify-between bg-slate-50/70 rounded-b-2xl border-t border-slate-100">
+                <div class="flex items-center gap-1.5">
+                  <input id="attachFileInput" type="file" class="hidden" onchange="handleFileAttach(event)" />
+                  <button type="button" onclick="document.getElementById('attachFileInput').click()" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:bg-white hover:text-blue-600 border border-transparent hover:border-slate-200 transition cursor-pointer" title="Attach file (uploads to Supabase Storage when connected)">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                    <span>Attach</span>
+                  </button>
+                  <button type="button" onclick="openSkillModal()" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:bg-white hover:text-blue-600 border border-transparent hover:border-slate-200 transition cursor-pointer">
+                    <span>+ Skill</span>
+                  </button>
+                  <button type="button" onclick="openCreateProjectModal()" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:bg-white hover:text-blue-600 border border-transparent hover:border-slate-200 transition cursor-pointer">
+                    <span>+ Project</span>
+                  </button>
+                  <div id="attachedFileChip" class="hidden items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold">
+                    <span id="attachedFileName" class="truncate max-w-[120px]"></span>
+                    <button type="button" onclick="clearAttachedFile()" class="text-emerald-600 hover:text-red-600">&times;</button>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <button id="stopStreamBtn" onclick="stopStreaming()" class="hidden px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs font-semibold transition cursor-pointer">
+                    Stop
+                  </button>
+                  <button id="sendBtn" onclick="sendMessage()" class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-semibold shadow-xs shadow-blue-600/20 transition cursor-pointer" title="Send Message">
+                    <span>Send</span>
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT SLIDE-OUT CODE PREVIEW CANVAS (Only opens when code is generated) -->
+      <aside id="codeCanvasPanel" class="hidden w-full lg:w-[46%] border-l border-slate-200 bg-slate-50 flex flex-col">
+        <div class="h-13 px-4 bg-white border-b border-slate-200 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="font-semibold text-xs text-slate-800">Live App Sandbox</span>
+            <span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-semibold">HTML/JS</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="copyCanvasCode()" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-700 cursor-pointer">Copy Code</button>
+            <button onclick="toggleCodePreview(false)" class="p-1 text-slate-400 hover:text-slate-700 cursor-pointer">&times;</button>
+          </div>
+        </div>
+        <iframe id="sandboxFrame" class="flex-1 w-full bg-white border-0" sandbox="allow-scripts"></iframe>
+      </aside>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- 3. MODALS (SKILLS BUILDER, NEW PROJECT, SETTINGS)         -->
+  <!-- ========================================================= -->
+
+  <!-- SKILL BUILDER MODAL -->
+  <div id="skillModal" class="hidden fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-base text-slate-900">Teach Trinity a New Skill</h3>
+        <button onclick="closeModal('skillModal')" class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+      </div>
+      <p class="text-xs text-slate-500">
+        Skills give Trinity specialized instructions, workflows, or formatting rules whenever activated.
+      </p>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Skill Name</label>
+          <input id="skillNameInput" type="text" placeholder="e.g., Strict Essay Coach, AP Bio Tutor, Clean Coder"
+            class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-blue-600" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Job Instructions &amp; Rules</label>
+          <textarea id="skillInstructionsInput" rows="5" placeholder="Describe exact steps, tone, and rules Trinity must follow when this Skill is turned on..."
+            class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-blue-600"></textarea>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeModal('skillModal')" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">Cancel</button>
+        <button onclick="saveNewSkill()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer">Save &amp; Activate Skill</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CREATE PROJECT MODAL -->
+  <div id="projectModal" class="hidden fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-base text-slate-900">Create New Project</h3>
+        <button onclick="closeModal('projectModal')" class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+      </div>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Project Title</label>
+          <input id="projectTitleInput" type="text" placeholder="e.g., Biology Research, Portfolio Website"
+            class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-blue-600" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Project Context / Goal (Optional)</label>
+          <textarea id="projectContextInput" rows="3" placeholder="Background notes Trinity should always keep in mind inside this project..."
+            class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-blue-600"></textarea>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeModal('projectModal')" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">Cancel</button>
+        <button onclick="createNewProject()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer">Create Project</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-base text-slate-900">Workspace Settings</h3>
+        <button onclick="closeModal('settingsModal')" class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+      </div>
+      <div class="space-y-3">
+        <!-- Supabase Cloud Sync -->
+        <div class="p-3.5 rounded-xl border border-blue-200 bg-blue-50/50 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded-md bg-emerald-500 text-white font-bold text-[10px] flex items-center justify-center">SB</span>
+              <span class="font-semibold text-xs text-slate-900">Supabase Cloud Sync</span>
+            </div>
+            <span id="supaStatusPill" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">Not configured</span>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Project URL</label>
+            <input id="supaUrlInput" type="text" placeholder="https://xxxxx.supabase.co"
+              class="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-blue-600" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Anon (Public) Key</label>
+            <input id="supaKeyInput" type="password" placeholder="eyJhbGciOi..."
+              class="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:border-blue-600" />
+          </div>
+          <p class="text-[10px] text-slate-500 leading-snug">Found in Supabase Dashboard → Project Settings → API. The anon key is safe to ship in client code (RLS protects data).</p>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Gemini API Key (Optional — enhances live grounding)</label>
+          <input id="apiKeyInput" type="password" placeholder="AIzaSy..."
+            class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-blue-600" />
+          <p class="text-[11px] text-slate-400 mt-1">Stored privately inside your local account profile. Works without a key via built-in fallback.</p>
+        </div>
+        <div class="p-3 rounded-xl bg-blue-50 border border-blue-100 text-xs text-blue-800">
+          <strong>Silent Background Learning:</strong> Trinity has learned <span id="settingsLearnedCount">0</span> contextual facts from your conversations to tailor future answers.
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeModal('settingsModal')" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">Close</button>
+        <button onclick="saveSettings()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 56+ CONNECTORS & INTEGRATIONS HUB MODAL -->
+  <div id="connectorsModal" class="hidden fixed inset-0 z-50 bg-slate-900/45 flex items-center justify-center p-3 sm:p-5">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-4xl w-full max-h-[88vh] flex flex-col overflow-hidden">
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-bold text-base text-slate-900">Trinity Connectors Hub <span class="text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full ml-1">56 Integrations</span></h3>
+            <p class="text-xs text-slate-500">Connect Claude, Gemini, Higgsfield, video/audio generators, dev clouds, and workspace apps.</p>
+          </div>
+        </div>
+        <button onclick="closeModal('connectorsModal')" class="text-slate-400 hover:text-slate-700 text-2xl leading-none cursor-pointer">&times;</button>
+      </div>
+
+      <!-- Search & Category Filter Bar -->
+      <div class="px-6 py-3 border-b border-slate-100 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-white">
+        <input id="connectorSearchInput" type="text" oninput="renderConnectorsGrid()" placeholder="Search 64 connectors (e.g., Google Docs, Slides, Sheets, Drive, Gmail, YouTube, Claude, Higgsfield)..."
+          class="flex-1 px-3.5 py-2 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-blue-600" />
+        <div id="connectorCategoryTabs" class="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 text-xs font-semibold">
+          <button onclick="setConnectorCategory('All')" class="conn-cat-btn px-3 py-1.5 rounded-lg bg-blue-600 text-white cursor-pointer shrink-0" data-cat="All">All (64)</button>
+          <button onclick="setConnectorCategory('Google Suite')" class="conn-cat-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer shrink-0" data-cat="Google Suite">Google Suite (14)</button>
+          <button onclick="setConnectorCategory('AI Models')" class="conn-cat-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer shrink-0" data-cat="AI Models">AI Models</button>
+          <button onclick="setConnectorCategory('Video & Media')" class="conn-cat-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer shrink-0" data-cat="Video & Media">Video &amp; Media</button>
+          <button onclick="setConnectorCategory('Dev & Cloud')" class="conn-cat-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer shrink-0" data-cat="Dev & Cloud">Dev &amp; Cloud</button>
+          <button onclick="setConnectorCategory('Workspace')" class="conn-cat-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer shrink-0" data-cat="Workspace">Workspace</button>
+        </div>
+      </div>
+
+      <!-- One-Click Google Ecosystem Connect Banner -->
+      <div class="px-6 py-2.5 bg-blue-50/80 border-b border-blue-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div class="flex items-center gap-2 text-blue-900">
+          <span class="w-5 h-5 rounded-md bg-white border border-blue-200 font-bold text-blue-600 flex items-center justify-center text-[11px]">G</span>
+          <span><strong>Google Workspace &amp; Gemini Ecosystem:</strong> Connect Docs, Slides, Sheets, Drive, Gmail, Calendar, YouTube &amp; Scholar in one click.</span>
+        </div>
+        <button onclick="connectAllGoogleApps()" class="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[11px] shadow-2xs cursor-pointer transition">
+          Connect All Google Apps (14)
+        </button>
+      </div>
+
+      <!-- Connectors Grid -->
+      <div id="connectorsGrid" class="flex-1 overflow-y-auto p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 bg-slate-50/40"></div>
+
+      <!-- Inline Connector Credential Config Drawer -->
+      <div id="connectorConfigBar" class="hidden px-6 py-4 bg-white border-t border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div class="min-w-0">
+          <div id="configConnectorTitle" class="font-bold text-xs text-slate-900">Configure Connector</div>
+          <div id="configConnectorDesc" class="text-[11px] text-slate-500 truncate">Add an optional API key or OAuth token to link this service.</div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <input id="connectorSecretInput" type="password" placeholder="API Key / OAuth Token (optional)"
+            class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-blue-600 w-56" />
+          <button onclick="saveConnectorSecret()" class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer">Save &amp; Connect</button>
+          <button onclick="document.getElementById('connectorConfigBar').classList.add('hidden')" class="px-2.5 py-1.5 rounded-xl text-xs text-slate-500 hover:bg-slate-100 cursor-pointer">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- 4. JAVASCRIPT ENGINE                                      -->
+  <!-- ========================================================= -->
+  <script>
+    const ACCOUNTS_KEY = 'trinity_accounts_v3';
+    const ACTIVE_SESSION_KEY = 'trinity_active_session_v3';
+    const SUPA_CONFIG_KEY = 'trinity_supa_config_v1';
+
+    // Supabase cloud layer (null until user configures URL + anon key in Settings)
+    let supaClient = null;
+    let cloudSyncTimer = null;
+    let pendingAttachment = null; // { name, url, path }
+
+    // Hardcoded Supabase project — baked in so no manual setup is needed.
+    // Safe to ship in client code (anon key + RLS). Override via Settings if needed.
+    const SUPA_DEFAULT_URL = 'https://dbtvgwujxeszcrrldjkr.supabase.co';
+    const SUPA_DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRidHZnd3VqeGVzemNycmxkamtyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUxOTUwMTMsImV4cCI6MjExMDc3MTAxM30.gdDCcpYGO5jvW4BacH8mzTo_vshFJyI4h5uqzO1KL4M';
+
+    function initSupabaseFromStorage() {
+      try {
+        let cfg = null;
+        try { cfg = JSON.parse(localStorage.getItem(SUPA_CONFIG_KEY) || 'null'); } catch {}
+        const url = cfg?.url || SUPA_DEFAULT_URL;
+        const anonKey = cfg?.anonKey || SUPA_DEFAULT_ANON_KEY;
+        if (url && anonKey && window.supabase) {
+          supaClient = window.supabase.createClient(url, anonKey, {
+            auth: { persistSession: true, autoRefreshToken: true }
+          });
+        }
+      } catch (e) {
+        console.warn('Supabase init failed:', e);
+      }
+    }
+
+    function updateSupaStatusPill() {
+      const pill = document.getElementById('supaStatusPill');
+      if (!pill) return;
+      if (supaClient && currentUser && !currentUser.isGuest && currentUser.supaUser) {
+        pill.textContent = 'Synced';
+        pill.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
+      } else if (supaClient) {
+        pill.textContent = 'Configured';
+        pill.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700';
+      } else {
+        pill.textContent = 'Not configured';
+        pill.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600';
+      }
+    }
+
+    // Strictly blocked crowdsourced/unverified domains
+    const BLOCKED_DOMAINS = [
+      'wikipedia.org', 'wikimedia.org', 'wiktionary.org',
+      'quora.com', 'reddit.com', 'answers.yahoo.com', 'wikihow.com'
+    ];
+
+    // 64 Major AI, Google Ecosystem, Media, Dev & Productivity Connectors
+    const CONNECTORS_CATALOG = [
+      // Complete Google Ecosystem & Gemini Extensions (14)
+      { id: 'gemini', name: 'Google Gemini', cat: 'Google Suite', badge: 'GM', isGoogle: true, desc: 'Gemini 2.5 Pro/Flash multimodal & Search grounding' },
+      { id: 'gdocs', name: 'Google Docs', cat: 'Google Suite', badge: 'DC', isGoogle: true, desc: 'Read, draft, outline & export directly to Google Docs' },
+      { id: 'gslides', name: 'Google Slides', cat: 'Google Suite', badge: 'SL', isGoogle: true, desc: 'Generate slide decks, speaker notes & presentation outlines' },
+      { id: 'gsheets', name: 'Google Sheets', cat: 'Google Suite', badge: 'SH', isGoogle: true, desc: 'Analyze tables, formulas, CSV data & live spreadsheets' },
+      { id: 'gdrive', name: 'Google Drive', cat: 'Google Suite', badge: 'GD', isGoogle: true, desc: 'Search folders, PDFs & cross-reference Drive files' },
+      { id: 'gmail', name: 'Gmail', cat: 'Google Suite', badge: 'ML', isGoogle: true, desc: 'Draft emails, summarize threads & triage inbox tasks' },
+      { id: 'gcal', name: 'Google Calendar', cat: 'Google Suite', badge: 'GC', isGoogle: true, desc: 'Schedule planning, deadlines & meeting time blocks' },
+      { id: 'youtube', name: 'YouTube', cat: 'Google Suite', badge: 'YT', isGoogle: true, desc: 'Summarize videos, transcripts & educational channels' },
+      { id: 'gmaps', name: 'Google Maps', cat: 'Google Suite', badge: 'MP', isGoogle: true, desc: 'Places, directions, local research & route planning' },
+      { id: 'gscholar', name: 'Google Scholar', cat: 'Google Suite', badge: 'SC', isGoogle: true, desc: 'Peer-reviewed academic papers, citations & journals' },
+      { id: 'gkeep', name: 'Google Keep', cat: 'Google Suite', badge: 'KP', isGoogle: true, desc: 'Capture quick notes, checklists & study reminders' },
+      { id: 'gforms', name: 'Google Forms', cat: 'Google Suite', badge: 'FM', isGoogle: true, desc: 'Build quizzes, surveys & analyze form responses' },
+      { id: 'gclassroom', name: 'Google Classroom', cat: 'Google Suite', badge: 'CR', isGoogle: true, desc: 'Assignments, rubrics, syllabi & coursework tracking' },
+      { id: 'gmeet', name: 'Google Meet', cat: 'Google Suite', badge: 'MT', isGoogle: true, desc: 'Meeting agendas, action items & call summaries' },
+
+      // Frontier AI Models (13)
+      { id: 'claude', name: 'Anthropic Claude', cat: 'AI Models', badge: 'CL', desc: 'Claude Sonnet / Opus reasoning & artifact workflows' },
+      { id: 'openai', name: 'OpenAI ChatGPT', cat: 'AI Models', badge: 'OA', desc: 'GPT-4o / o3 reasoning & structured outputs' },
+      { id: 'higgsfield', name: 'Higgsfield AI', cat: 'Video & Media', badge: 'HF', desc: 'Cinema-grade AI video generation & camera motion control' },
+      { id: 'grok', name: 'xAI Grok', cat: 'AI Models', badge: 'GK', desc: 'Real-time X/web pulse & technical reasoning' },
+      { id: 'perplexity', name: 'Perplexity Sonar', cat: 'AI Models', badge: 'PX', desc: 'Deep citation search & live web synthesis' },
+      { id: 'mistral', name: 'Mistral AI', cat: 'AI Models', badge: 'MS', desc: 'Mistral Large & Codestral fast European models' },
+      { id: 'deepseek', name: 'DeepSeek R1/V3', cat: 'AI Models', badge: 'DS', desc: 'Chain-of-thought math & code synthesis' },
+      { id: 'cohere', name: 'Cohere Command', cat: 'AI Models', badge: 'CH', desc: 'Enterprise RAG & semantic reranking' },
+      { id: 'groq', name: 'Groq LPU', cat: 'AI Models', badge: 'GQ', desc: 'Ultra-low-latency hardware token inference' },
+      { id: 'together', name: 'Together AI', cat: 'AI Models', badge: 'TG', desc: 'Open-source Llama & Qwen model cluster' },
+      { id: 'openrouter', name: 'OpenRouter', cat: 'AI Models', badge: 'OR', desc: 'Unified router across 100+ frontier models' },
+      { id: 'huggingface', name: 'Hugging Face', cat: 'AI Models', badge: 'HF', desc: 'Open weights, Spaces & Inference Endpoints' },
+      { id: 'ollama', name: 'Ollama Local', cat: 'AI Models', badge: 'OL', desc: 'Local private LLM bridge on your machine' },
+
+      // Video, Image & Audio AI (13)
+      { id: 'runway', name: 'Runway Gen-3', cat: 'Video & Media', badge: 'RW', desc: 'Text/image-to-video & motion brush studio' },
+      { id: 'midjourney', name: 'Midjourney', cat: 'Video & Media', badge: 'MJ', desc: 'Photorealistic & artistic image generation' },
+      { id: 'kling', name: 'Kling AI', cat: 'Video & Media', badge: 'KL', desc: 'High-motion 1080p AI video synthesis' },
+      { id: 'luma', name: 'Luma Dream Machine', cat: 'Video & Media', badge: 'LM', desc: 'Keyframe video & 3D scene capture' },
+      { id: 'pika', name: 'Pika Art', cat: 'Video & Media', badge: 'PK', desc: 'Pikaffects & stylized video generation' },
+      { id: 'sora', name: 'OpenAI Sora', cat: 'Video & Media', badge: 'SR', desc: 'Storyboard & cinematic video generation' },
+      { id: 'elevenlabs', name: 'ElevenLabs', cat: 'Video & Media', badge: '11', desc: 'Lifelike AI voice synthesis & dubbing' },
+      { id: 'suno', name: 'Suno AI', cat: 'Video & Media', badge: 'SN', desc: 'Full-song vocal & instrumental music creation' },
+      { id: 'udio', name: 'Udio', cat: 'Video & Media', badge: 'UD', desc: 'Studio-quality AI music & stem generation' },
+      { id: 'stability', name: 'Stability AI', cat: 'Video & Media', badge: 'ST', desc: 'Stable Diffusion 3.5 & image upscaling' },
+      { id: 'leonardo', name: 'Leonardo AI', cat: 'Video & Media', badge: 'LN', desc: 'Game assets, textures & concept art' },
+      { id: 'ideogram', name: 'Ideogram 2.0', cat: 'Video & Media', badge: 'ID', desc: 'Typography-accurate graphic design & posters' },
+      { id: 'heygen', name: 'HeyGen', cat: 'Video & Media', badge: 'HG', desc: 'AI presenter avatars & video translation' },
+
+      // Dev & Cloud (13)
+      { id: 'github', name: 'GitHub', cat: 'Dev & Cloud', badge: 'GH', desc: 'Repos, pull requests, issues & Actions CI' },
+      { id: 'supabase', name: 'Supabase', cat: 'Dev & Cloud', badge: 'SB', desc: 'Postgres database, Auth & cross-device sync' },
+      { id: 'firebase', name: 'Firebase', cat: 'Dev & Cloud', badge: 'FB', desc: 'Firestore, Hosting & Realtime mobile sync' },
+      { id: 'vercel', name: 'Vercel', cat: 'Dev & Cloud', badge: 'VC', desc: 'Instant frontend deployments & edge functions' },
+      { id: 'netlify', name: 'Netlify', cat: 'Dev & Cloud', badge: 'NT', desc: 'Static web hosting & serverless builds' },
+      { id: 'cloudflare', name: 'Cloudflare', cat: 'Dev & Cloud', badge: 'CF', desc: 'Workers AI, R2 storage & global CDN' },
+      { id: 'gitlab', name: 'GitLab', cat: 'Dev & Cloud', badge: 'GL', desc: 'DevSecOps repositories & CI/CD pipelines' },
+      { id: 'replit', name: 'Replit', cat: 'Dev & Cloud', badge: 'RP', desc: 'Cloud IDE workspaces & instant app hosting' },
+      { id: 'cursor', name: 'Cursor Rules', cat: 'Dev & Cloud', badge: 'CR', desc: 'Sync .cursorrules & multi-file coding context' },
+      { id: 'docker', name: 'Docker Hub', cat: 'Dev & Cloud', badge: 'DK', desc: 'Container registries & compose blueprints' },
+      { id: 'linear', name: 'Linear', cat: 'Dev & Cloud', badge: 'LN', desc: 'Software issue tracking & sprint roadmaps' },
+      { id: 'sentry', name: 'Sentry', cat: 'Dev & Cloud', badge: 'SY', desc: 'Real-time crash telemetry & stack trace triage' },
+      { id: 'postman', name: 'Postman', cat: 'Dev & Cloud', badge: 'PM', desc: 'REST/GraphQL API collections & testing' },
+
+      // Workspace & Productivity (11)
+      { id: 'notion', name: 'Notion', cat: 'Workspace', badge: 'NT', desc: 'Wikis, databases & project knowledge bases' },
+      { id: 'slack', name: 'Slack', cat: 'Workspace', badge: 'SL', desc: 'Channel digests & automated team updates' },
+      { id: 'discord', name: 'Discord', cat: 'Workspace', badge: 'DC', desc: 'Webhook alerts & community bot workflows' },
+      { id: 'm365', name: 'Microsoft 365', cat: 'Workspace', badge: 'MS', desc: 'Word, Excel, Teams & OneDrive files' },
+      { id: 'figma', name: 'Figma', cat: 'Workspace', badge: 'FG', desc: 'Design tokens, frames & UI component specs' },
+      { id: 'zapier', name: 'Zapier', cat: 'Workspace', badge: 'ZP', desc: 'Connect Trinity to 7,000+ automated Zaps' },
+      { id: 'make', name: 'Make (Integromat)', cat: 'Workspace', badge: 'MK', desc: 'Visual multi-step automation scenarios' },
+      { id: 'n8n', name: 'n8n Workflows', cat: 'Workspace', badge: 'N8', desc: 'Self-hosted AI agent webhook pipelines' },
+      { id: 'trello', name: 'Trello', cat: 'Workspace', badge: 'TR', desc: 'Kanban boards, cards & checklists' },
+      { id: 'asana', name: 'Asana', cat: 'Workspace', badge: 'AS', desc: 'Team tasks, milestones & timelines' },
+      { id: 'jira', name: 'Atlassian Jira', cat: 'Workspace', badge: 'JR', desc: 'Agile epics, tickets & release boards' }
+    ];
+
+    let authMode = 'signin';
+    let currentUser = null;
+    let userState = null;
+    let activeChatId = null;
+    let activeProjectId = null;
+    let routerModes = ['Auto • Trinity', 'Freebuff • Coder', 'Deep Research'];
+    let routerModeIndex = 0;
+    let webResearchEnabled = true;
+    let latestGeneratedCode = '';
+    let activeConnectorCategory = 'All';
+    let configuringConnectorId = null;
+    let streamAbortFlag = false;
+
+    // ---------------------------------------------------------
+    // INITIALIZATION & SMOOTH AUTH FLOW
+    // ---------------------------------------------------------
+    window.addEventListener('DOMContentLoaded', async () => {
+      initSupabaseFromStorage();
+      renderSavedAccounts();
+
+      // If Supabase is configured, check for an existing cloud session first
+      if (supaClient) {
+        try {
+          const { data: { session } } = await supaClient.auth.getSession();
+          if (session && session.user) {
+            const cloudAccount = {
+              email: session.user.email,
+              name: session.user.user_metadata?.name || session.user.email.split('@')[0],
+              supaUser: session.user,
+              isCloud: true
+            };
+            await completeLogin(cloudAccount, true);
+            return;
+          }
+        } catch (e) { console.warn('Session restore failed:', e); }
+      }
+
+      const savedSession = localStorage.getItem(ACTIVE_SESSION_KEY) || sessionStorage.getItem(ACTIVE_SESSION_KEY);
+      if (savedSession) {
+        const accounts = getAccounts();
+        if (accounts[savedSession]) {
+          completeLogin(accounts[savedSession], !!localStorage.getItem(ACTIVE_SESSION_KEY));
+        }
+      }
+    });
+
+    function getAccounts() {
+      try {
+        return JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || '{}');
+      } catch {
+        return {};
+      }
+    }
+
+    function saveAccounts(accounts) {
+      localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+    }
+
+    function switchAuthMode(mode) {
+      authMode = mode;
+      const errBox = document.getElementById('authErrorBox');
+      errBox.classList.add('hidden');
+
+      const tabIn = document.getElementById('tabSignIn');
+      const tabUp = document.getElementById('tabSignUp');
+      const nameWrap = document.getElementById('nameFieldWrap');
+      const submitBtn = document.getElementById('authSubmitBtn');
+
+      if (mode === 'signin') {
+        tabIn.className = 'py-2 text-sm font-semibold rounded-lg bg-white text-blue-600 shadow-xs transition cursor-pointer';
+        tabUp.className = 'py-2 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer';
+        nameWrap.classList.add('hidden');
+        submitBtn.textContent = 'Continue to Workspace';
+      } else {
+        tabUp.className = 'py-2 text-sm font-semibold rounded-lg bg-white text-blue-600 shadow-xs transition cursor-pointer';
+        tabIn.className = 'py-2 text-sm font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer';
+        nameWrap.classList.remove('hidden');
+        submitBtn.textContent = 'Create Account & Enter';
+      }
+    }
+
+    function togglePasswordPeek() {
+      const inp = document.getElementById('authPassword');
+      const btn = document.getElementById('peekBtn');
+      if (inp.type === 'password') {
+        inp.type = 'text';
+        btn.textContent = 'Hide';
+      } else {
+        inp.type = 'password';
+        btn.textContent = 'Show';
+      }
+    }
+
+    function showAuthError(msg) {
+      const box = document.getElementById('authErrorBox');
+      box.textContent = msg;
+      box.classList.remove('hidden');
+    }
+
+    async function handleAuthSubmit(e) {
+      e.preventDefault();
+      const email = document.getElementById('authEmail').value.trim().toLowerCase();
+      const password = document.getElementById('authPassword').value;
+      const nameInput = document.getElementById('authName').value.trim();
+      const remember = document.getElementById('rememberMeCheck').checked;
+
+      if (!email || !password) {
+        showAuthError('Please enter both your username/email and password.');
+        return;
+      }
+
+      // Supabase cloud auth path (works cross-device)
+      if (supaClient) {
+        try {
+          if (authMode === 'signup') {
+            const displayName = nameInput || email.split('@')[0];
+            const { data, error } = await supaClient.auth.signUp({
+              email, password,
+              options: { data: { name: displayName } }
+            });
+            if (error) { showAuthError(error.message); return; }
+            if (data.user && !data.session) {
+              showAuthError('Account created. Check your email to confirm, then sign in. (Or disable email confirmations in Supabase → Auth → Providers.)');
+              return;
+            }
+            await completeLogin({
+              email, name: displayName, supaUser: data.user, isCloud: true
+            }, remember);
+          } else {
+            const { data, error } = await supaClient.auth.signInWithPassword({ email, password });
+            if (error) { showAuthError(error.message); return; }
+            await completeLogin({
+              email: data.user.email,
+              name: data.user.user_metadata?.name || data.user.email.split('@')[0],
+              supaUser: data.user,
+              isCloud: true
+            }, remember);
+          }
+          return;
+        } catch (err) {
+          showAuthError('Cloud auth failed: ' + err.message);
+          return;
+        }
+      }
+
+      // Fallback: original localStorage auth (device-only)
+      const accounts = getAccounts();
+      if (authMode === 'signup') {
+        if (accounts[email]) {
+          showAuthError('An account with that username/email already exists. Switch to Sign In.');
+          return;
+        }
+        const displayName = nameInput || email.split('@')[0];
+        accounts[email] = { email, name: displayName, password, createdAt: Date.now() };
+        saveAccounts(accounts);
+        completeLogin(accounts[email], remember);
+      } else {
+        const existing = accounts[email];
+        if (!existing) {
+          showAuthError('Account not found. Click "Create Account" above to register.');
+          return;
+        }
+        if (existing.password !== password) {
+          showAuthError('Incorrect password. Please try again.');
+          return;
+        }
+        completeLogin(existing, remember);
+      }
+    }
+
+    function loginAsGuest() {
+      const guestAccount = { email: 'guest@trinity.local', name: 'Guest User', isGuest: true };
+      completeLogin(guestAccount, false);
+    }
+
+    function renderSavedAccounts() {
+      const accounts = Object.values(getAccounts());
+      const section = document.getElementById('savedAccountsSection');
+      const list = document.getElementById('savedAccountsList');
+      if (!section || !list) return;
+      if (!accounts.length) {
+        section.classList.add('hidden');
+        return;
+      }
+      section.classList.remove('hidden');
+      list.innerHTML = accounts.map(acc => `
+        <button type="button" onclick="quickSwitchAccount('${escapeHtml(acc.email)}')"
+          class="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 text-left transition cursor-pointer">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center shrink-0">
+              ${escapeHtml(acc.name.charAt(0).toUpperCase())}
+            </span>
+            <span class="text-xs font-semibold text-slate-800 truncate">${escapeHtml(acc.name)}</span>
+          </div>
+          <span class="text-[11px] font-medium text-blue-600">Sign in &rarr;</span>
+        </button>
+      `).join('');
+    }
+
+    function quickSwitchAccount(email) {
+      const accounts = getAccounts();
+      if (accounts[email]) {
+        completeLogin(accounts[email], true);
+      }
+    }
+
+    async function completeLogin(account, remember) {
+      currentUser = account;
+      if (!account.isGuest && !account.isCloud) {
+        if (remember) {
+          localStorage.setItem(ACTIVE_SESSION_KEY, account.email);
+        } else {
+          sessionStorage.setItem(ACTIVE_SESSION_KEY, account.email);
+        }
+      }
+
+      await loadUserWorkspaceState();
+
+      document.getElementById('authScreen').classList.add('view-hidden');
+      document.getElementById('appWorkspace').classList.remove('view-hidden');
+
+      document.getElementById('userDisplayName').textContent = account.name;
+      document.getElementById('userAvatarBadge').textContent = account.name.charAt(0).toUpperCase();
+      const subLabel = account.isGuest ? 'Guest Session'
+                      : account.isCloud ? `${account.email} • Cloud Synced`
+                      : `${account.email} • Local`;
+      document.getElementById('userSubLabel').textContent = subLabel;
+      document.getElementById('welcomeGreeting').textContent = `Welcome back, ${account.name}`;
+
+      const syncMsg = account.isCloud
+        ? `Signed in as ${account.name}. Workspace synced from cloud.`
+        : `Signed in as ${account.name}. Adaptive background memory is active.`;
+      pushNotification(syncMsg);
+      renderAllWorkspaceUI();
+      updateSupaStatusPill();
+    }
+
+    async function signOutUser() {
+      if (supaClient && currentUser?.isCloud) {
+        try { await supaClient.auth.signOut(); } catch {}
+      }
+      localStorage.removeItem(ACTIVE_SESSION_KEY);
+      sessionStorage.removeItem(ACTIVE_SESSION_KEY);
+      currentUser = null;
+      activeChatId = null;
+      activeProjectId = null;
+      document.getElementById('appWorkspace').classList.add('view-hidden');
+      document.getElementById('authScreen').classList.remove('view-hidden');
+      renderSavedAccounts();
+    }
+
+    // ---------------------------------------------------------
+    // ACCOUNT-SCOPED WORKSPACE STATE
+    // ---------------------------------------------------------
+    function getStorageKeyForUser() {
+      return `trinity_state_${currentUser ? currentUser.email : 'guest'}`;
+    }
+
+    async function loadUserWorkspaceState() {
+      userState = null;
+
+      // Cloud-first for Supabase users
+      if (supaClient && currentUser?.isCloud && currentUser.supaUser) {
+        try {
+          const { data, error } = await supaClient
+            .from('workspaces')
+            .select('data')
+            .eq('user_id', currentUser.supaUser.id)
+            .maybeSingle();
+          if (!error && data && data.data) {
+            userState = data.data;
+          }
+        } catch (e) { console.warn('Cloud load failed, falling back to local:', e); }
+      }
+
+      if (!userState) {
+        const raw = localStorage.getItem(getStorageKeyForUser());
+        if (raw) {
+          try { userState = JSON.parse(raw); } catch { userState = null; }
+        }
+      }
+
+      if (!userState) {
+        userState = {
+          chats: [],
+          projects: [],
+          skills: [
+            {
+              id: 'skill_research_pro',
+              name: 'Credible Research Brief',
+              instructions: 'Verify every claim against official .gov, .edu, or primary sources. Never cite wikis or forums. Structure answers with clear bullet points and direct facts.',
+              active: false
+            }
+          ],
+          connectors: {},
+          backgroundMemory: [],
+          notifications: [],
+          apiKey: ''
+        };
+      }
+      if (!userState.connectors) userState.connectors = {};
+      persistWorkspaceState();
+    }
+
+    function persistWorkspaceState() {
+      if (!currentUser) return;
+      localStorage.setItem(getStorageKeyForUser(), JSON.stringify(userState));
+      updateAdaptiveIQBadge();
+      updateConnectorCounters();
+
+      // Debounced cloud sync for Supabase users
+      if (supaClient && currentUser?.isCloud && currentUser.supaUser) {
+        if (cloudSyncTimer) clearTimeout(cloudSyncTimer);
+        cloudSyncTimer = setTimeout(cloudSyncNow, 1200);
+      }
+    }
+
+    async function cloudSyncNow() {
+      if (!supaClient || !currentUser?.isCloud || !currentUser.supaUser) return;
+      try {
+        const { error } = await supaClient
+          .from('workspaces')
+          .upsert({
+            user_id: currentUser.supaUser.id,
+            data: userState,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'user_id' });
+        if (error) console.warn('Cloud sync error:', error.message);
+      } catch (e) { console.warn('Cloud sync threw:', e); }
+    }
+
+    function updateAdaptiveIQBadge() {
+      const learnedCount = (userState.backgroundMemory || []).length;
+      const iqLevel = 1 + Math.floor(learnedCount / 2);
+      document.getElementById('adaptiveLevelCount').textContent = iqLevel;
+      const settingsCount = document.getElementById('settingsLearnedCount');
+      if (settingsCount) settingsCount.textContent = learnedCount;
+    }
+
+    // ---------------------------------------------------------
+    // NOTIFICATION BAR & ACTIVITY DRAWER
+    // ---------------------------------------------------------
+    function pushNotification(text) {
+      const banner = document.getElementById('liveBannerText');
+      if (banner) banner.textContent = text;
+
+      if (!userState) return;
+      userState.notifications.unshift({
+        id: Date.now(),
+        text,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      });
+      userState.notifications = userState.notifications.slice(0, 20);
+      document.getElementById('notifBadge').classList.remove('hidden');
+      renderNotifications();
+      persistWorkspaceState();
+    }
+
+    function toggleNotificationDrawer() {
+      const drawer = document.getElementById('notificationDrawer');
+      drawer.classList.toggle('hidden');
+      document.getElementById('notifBadge').classList.add('hidden');
+    }
+
+    function clearNotifications() {
+      userState.notifications = [];
+      renderNotifications();
+      persistWorkspaceState();
+    }
+
+    function renderNotifications() {
+      const list = document.getElementById('notificationList');
+      if (!userState.notifications.length) {
+        list.innerHTML = `<div class="p-4 text-center text-slate-400">No recent notifications</div>`;
+        return;
+      }
+      list.innerHTML = userState.notifications.map(n => `
+        <div class="px-4 py-2.5 hover:bg-slate-50 flex items-start justify-between gap-2">
+          <span class="text-slate-700 leading-snug">${escapeHtml(n.text)}</span>
+          <span class="text-[10px] text-slate-400 shrink-0">${escapeHtml(n.time)}</span>
+        </div>
+      `).join('');
+    }
+
+    // ---------------------------------------------------------
+    // SIDEBAR NAVIGATION: CHATS | PROJECTS | SKILLS | APPS
+    // ---------------------------------------------------------
+    function switchSidebarSection(section) {
+      ['chats', 'projects', 'skills', 'connectors'].forEach(key => {
+        const tab = document.getElementById('navTab' + key.charAt(0).toUpperCase() + key.slice(1));
+        const sec = document.getElementById('section' + key.charAt(0).toUpperCase() + key.slice(1));
+        if (key === section) {
+          tab.className = 'py-1.5 rounded-lg bg-white text-blue-600 shadow-2xs transition cursor-pointer';
+          sec.classList.remove('hidden');
+        } else {
+          tab.className = 'py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer';
+          sec.classList.add('hidden');
+        }
+      });
+    }
+
+    function toggleMobileSidebar(open) {
+      const sidebar = document.getElementById('leftSidebar');
+      const backdrop = document.getElementById('sidebarBackdrop');
+      if (open) {
+        sidebar.classList.remove('-translate-x-full');
+        backdrop.classList.remove('hidden');
+      } else {
+        sidebar.classList.add('-translate-x-full');
+        backdrop.classList.add('hidden');
+      }
+    }
+
+    function renderAllWorkspaceUI() {
+      renderChatHistory();
+      renderProjects();
+      renderSkills();
+      renderSidebarConnectors();
+      renderNotifications();
+      updateAdaptiveIQBadge();
+      updateActiveSkillPill();
+      updateConnectorCounters();
+    }
+
+    function renderChatHistory() {
+      const list = document.getElementById('chatHistoryList');
+      if (!userState.chats.length) {
+        list.innerHTML = `<div class="px-2 py-4 text-xs text-slate-400 text-center">No chats yet. Start typing below!</div>`;
+        return;
+      }
+      list.innerHTML = userState.chats.map(chat => {
+        const isSelected = chat.id === activeChatId;
+        return `
+          <div onclick="loadChat('${chat.id}')"
+            class="group flex items-center justify-between px-3 py-2 rounded-xl text-xs cursor-pointer transition ${isSelected ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700 hover:bg-slate-200/60'}">
+            <span class="truncate pr-2">${escapeHtml(chat.title)}</span>
+            <button onclick="deleteChat(event, '${chat.id}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 px-1">&times;</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderProjects() {
+      const list = document.getElementById('projectsList');
+      if (!userState.projects.length) {
+        list.innerHTML = `
+          <div class="p-4 rounded-xl border border-dashed border-slate-300 text-center space-y-2">
+            <div class="text-xs font-medium text-slate-600">No projects yet</div>
+            <p class="text-[11px] text-slate-400">Create a project to keep specialized chats and instructions organized.</p>
+            <button onclick="openCreateProjectModal()" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold cursor-pointer">+ Create First Project</button>
+          </div>
+        `;
+        return;
+      }
+      list.innerHTML = userState.projects.map(proj => {
+        const isSelected = proj.id === activeProjectId;
+        return `
+          <div onclick="selectProject('${proj.id}')"
+            class="p-3 rounded-xl border cursor-pointer transition ${isSelected ? 'bg-blue-50 border-blue-300' : 'bg-white border-slate-200 hover:border-blue-300'}">
+            <div class="flex items-center justify-between">
+              <span class="font-semibold text-xs text-slate-900">${escapeHtml(proj.title)}</span>
+              <button onclick="deleteProject(event, '${proj.id}')" class="text-slate-400 hover:text-red-600 text-xs">&times;</button>
+            </div>
+            ${proj.context ? `<p class="text-[11px] text-slate-500 mt-1 line-clamp-2">${escapeHtml(proj.context)}</p>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderSkills() {
+      const list = document.getElementById('skillsList');
+      if (!userState.skills.length) {
+        list.innerHTML = `<div class="p-3 text-xs text-slate-400 text-center">No Skills created yet.</div>`;
+        return;
+      }
+      list.innerHTML = userState.skills.map(skill => `
+        <div class="p-3 rounded-xl border ${skill.active ? 'bg-blue-50/80 border-blue-300' : 'bg-white border-slate-200'} space-y-1.5">
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-semibold text-xs text-slate-900 truncate">${escapeHtml(skill.name)}</span>
+            <button onclick="toggleSkill('${skill.id}')"
+              class="px-2 py-0.5 rounded-full text-[10px] font-semibold cursor-pointer transition ${skill.active ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+              ${skill.active ? 'Active' : 'Enable'}
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-500 line-clamp-2">${escapeHtml(skill.instructions)}</p>
+        </div>
+      `).join('');
+    }
+
+    function updateActiveSkillPill() {
+      const activeSkills = userState.skills.filter(s => s.active);
+      const pill = document.getElementById('activeSkillHeaderPill');
+      const label = document.getElementById('activeSkillHeaderName');
+      if (activeSkills.length) {
+        pill.classList.remove('hidden');
+        label.textContent = activeSkills.map(s => s.name).join(', ');
+      } else {
+        pill.classList.add('hidden');
+      }
+    }
+
+    // ---------------------------------------------------------
+    // 64+ CONNECTORS HUB & GOOGLE SUITE EXPORT
+    // ---------------------------------------------------------
+    function updateConnectorCounters() {
+      const connectedCount = Object.values(userState?.connectors || {}).filter(c => c && c.connected).length;
+      const composerBadge = document.getElementById('composerConnectedCount');
+      if (composerBadge) composerBadge.textContent = connectedCount;
+    }
+
+    function renderSidebarConnectors() {
+      const list = document.getElementById('sidebarConnectedList');
+      if (!list) return;
+      const active = CONNECTORS_CATALOG.filter(c => userState.connectors[c.id]?.connected);
+      if (!active.length) {
+        list.innerHTML = `<div class="p-3 rounded-xl border border-dashed border-slate-300 text-[11px] text-slate-400 text-center">No apps connected yet.</div>`;
+        return;
+      }
+      list.innerHTML = active.slice(0, 8).map(c => `
+        <div class="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs">
+          <span class="font-medium text-slate-800 truncate">${escapeHtml(c.name)}</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+        </div>
+      `).join('');
+    }
+
+    function openConnectorsModal() {
+      document.getElementById('connectorConfigBar').classList.add('hidden');
+      renderConnectorsGrid();
+      document.getElementById('connectorsModal').classList.remove('hidden');
+    }
+
+    function setConnectorCategory(cat) {
+      activeConnectorCategory = cat;
+      document.querySelectorAll('.conn-cat-btn').forEach(btn => {
+        if (btn.dataset.cat === cat) {
+          btn.className = 'conn-cat-btn px-3 py-1.5 rounded-lg bg-blue-600 text-white cursor-pointer shrink-0';
+        } else {
+          btn.className = 'conn-cat-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer shrink-0';
+        }
+      });
+      renderConnectorsGrid();
+    }
+
+    function renderConnectorsGrid() {
+      const grid = document.getElementById('connectorsGrid');
+      const query = (document.getElementById('connectorSearchInput')?.value || '').trim().toLowerCase();
+
+      const filtered = CONNECTORS_CATALOG.filter(c => {
+        const matchesCat = activeConnectorCategory === 'All' || c.cat === activeConnectorCategory;
+        const matchesQuery = !query || c.name.toLowerCase().includes(query) || c.desc.toLowerCase().includes(query) || c.cat.toLowerCase().includes(query);
+        return matchesCat && matchesQuery;
+      });
+
+      grid.innerHTML = filtered.map(c => {
+        const state = userState.connectors[c.id] || { connected: false };
+        return `
+          <div class="p-3.5 rounded-xl border ${state.connected ? 'bg-blue-50/60 border-blue-300' : 'bg-white border-slate-200'} flex flex-col justify-between gap-3">
+            <div class="flex items-start gap-2.5">
+              <div class="w-8 h-8 rounded-lg ${c.isGoogle ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'} font-bold text-xs flex items-center justify-center shrink-0">
+                ${escapeHtml(c.badge)}
+              </div>
+              <div class="min-w-0">
+                <div class="font-semibold text-xs text-slate-900 truncate">${escapeHtml(c.name)}</div>
+                <div class="text-[10px] font-medium text-blue-600">${escapeHtml(c.cat)}</div>
+              </div>
+            </div>
+            <p class="text-[11px] text-slate-500 leading-snug">${escapeHtml(c.desc)}</p>
+            <div class="flex items-center justify-between pt-1 border-t border-slate-100">
+              <button onclick="openConnectorConfig('${c.id}')" class="text-[11px] font-medium text-slate-500 hover:text-blue-600 cursor-pointer">
+                ${state.secret ? 'Key Saved' : 'Configure'}
+              </button>
+              <button onclick="toggleConnector('${c.id}')"
+                class="px-3 py-1 rounded-lg text-[11px] font-semibold cursor-pointer transition ${state.connected ? 'bg-emerald-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}">
+                ${state.connected ? 'Connected' : 'Connect'}
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleConnector(id) {
+      const item = CONNECTORS_CATALOG.find(c => c.id === id);
+      if (!item) return;
+      const prev = userState.connectors[id] || { connected: false, secret: '' };
+      userState.connectors[id] = { ...prev, connected: !prev.connected };
+      persistWorkspaceState();
+      renderConnectorsGrid();
+      renderSidebarConnectors();
+      pushNotification(`${item.name} ${userState.connectors[id].connected ? 'connected' : 'disconnected'}.`);
+    }
+
+    function connectAllGoogleApps() {
+      CONNECTORS_CATALOG.filter(c => c.isGoogle).forEach(c => {
+        const prev = userState.connectors[c.id] || { secret: '' };
+        userState.connectors[c.id] = { ...prev, connected: true };
+      });
+      persistWorkspaceState();
+      renderConnectorsGrid();
+      renderSidebarConnectors();
+      pushNotification('All 14 Google Workspace & Gemini connectors enabled!');
+    }
+
+    function openConnectorConfig(id) {
+      const item = CONNECTORS_CATALOG.find(c => c.id === id);
+      if (!item) return;
+      configuringConnectorId = id;
+      document.getElementById('configConnectorTitle').textContent = `Configure ${item.name}`;
+      document.getElementById('configConnectorDesc').textContent = item.desc;
+      document.getElementById('connectorSecretInput').value = userState.connectors[id]?.secret || '';
+      document.getElementById('connectorConfigBar').classList.remove('hidden');
+    }
+
+    function saveConnectorSecret() {
+      if (!configuringConnectorId) return;
+      const secret = document.getElementById('connectorSecretInput').value.trim();
+      const item = CONNECTORS_CATALOG.find(c => c.id === configuringConnectorId);
+      userState.connectors[configuringConnectorId] = { connected: true, secret };
+      if (configuringConnectorId === 'gemini' && secret) {
+        userState.apiKey = secret;
+      }
+      persistWorkspaceState();
+      renderConnectorsGrid();
+      renderSidebarConnectors();
+      document.getElementById('connectorConfigBar').classList.add('hidden');
+      pushNotification(`${item ? item.name : 'Connector'} linked and saved.`);
+    }
+
+    function exportToGoogleApp(type, encodedText) {
+      const text = decodeURIComponent(encodedText);
+      const temp = document.createElement('textarea');
+      temp.value = text;
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand('copy');
+      document.body.removeChild(temp);
+
+      const urlMap = {
+        docs: 'https://docs.google.com/document/create',
+        slides: 'https://docs.google.com/presentation/create',
+        sheets: 'https://docs.google.com/spreadsheets/create',
+        gmail: `https://mail.google.com/mail/?view=cm&fs=1&body=${encodeURIComponent(text.slice(0, 1800))}`
+      };
+      window.open(urlMap[type] || urlMap.docs, '_blank', 'noopener,noreferrer');
+      pushNotification(`Copied response and opened new Google ${type.charAt(0).toUpperCase() + type.slice(1)} tab.`);
+    }
+
+    // ---------------------------------------------------------
+    // SKILLS, PROJECTS & SETTINGS ACTIONS
+    // ---------------------------------------------------------
+    function openSkillModal() {
+      document.getElementById('skillNameInput').value = '';
+      document.getElementById('skillInstructionsInput').value = '';
+      document.getElementById('skillModal').classList.remove('hidden');
+    }
+
+    function saveNewSkill() {
+      const name = document.getElementById('skillNameInput').value.trim();
+      const instructions = document.getElementById('skillInstructionsInput').value.trim();
+      if (!name || !instructions) return;
+
+      userState.skills.unshift({
+        id: 'skill_' + Date.now(),
+        name,
+        instructions,
+        active: true
+      });
+      persistWorkspaceState();
+      renderSkills();
+      updateActiveSkillPill();
+      closeModal('skillModal');
+      pushNotification(`Skill "${name}" created and activated.`);
+    }
+
+    function toggleSkill(id) {
+      const skill = userState.skills.find(s => s.id === id);
+      if (!skill) return;
+      skill.active = !skill.active;
+      persistWorkspaceState();
+      renderSkills();
+      updateActiveSkillPill();
+      pushNotification(`Skill "${skill.name}" ${skill.active ? 'activated' : 'turned off'}.`);
+    }
+
+    function openCreateProjectModal() {
+      document.getElementById('projectTitleInput').value = '';
+      document.getElementById('projectContextInput').value = '';
+      document.getElementById('projectModal').classList.remove('hidden');
+    }
+
+    function createNewProject() {
+      const title = document.getElementById('projectTitleInput').value.trim();
+      const context = document.getElementById('projectContextInput').value.trim();
+      if (!title) return;
+
+      const proj = { id: 'proj_' + Date.now(), title, context };
+      userState.projects.unshift(proj);
+      activeProjectId = proj.id;
+      persistWorkspaceState();
+      renderProjects();
+      updateProjectBadge();
+      closeModal('projectModal');
+      startNewChat(true);
+      pushNotification(`Project "${title}" created.`);
+    }
+
+    function selectProject(id) {
+      activeProjectId = activeProjectId === id ? null : id;
+      renderProjects();
+      updateProjectBadge();
+    }
+
+    function deleteProject(e, id) {
+      e.stopPropagation();
+      userState.projects = userState.projects.filter(p => p.id !== id);
+      if (activeProjectId === id) activeProjectId = null;
+      persistWorkspaceState();
+      renderProjects();
+      updateProjectBadge();
+    }
+
+    function updateProjectBadge() {
+      const badge = document.getElementById('activeProjectBadge');
+      const proj = userState.projects.find(p => p.id === activeProjectId);
+      if (proj) {
+        badge.textContent = `Project: ${proj.title}`;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    function openSettingsModal() {
+      document.getElementById('apiKeyInput').value = userState.apiKey || '';
+      const cfg = JSON.parse(localStorage.getItem(SUPA_CONFIG_KEY) || 'null');
+      document.getElementById('supaUrlInput').value = cfg?.url || '';
+      document.getElementById('supaKeyInput').value = cfg?.anonKey || '';
+      updateAdaptiveIQBadge();
+      updateSupaStatusPill();
+      document.getElementById('settingsModal').classList.remove('hidden');
+    }
+
+    function saveSettings() {
+      userState.apiKey = document.getElementById('apiKeyInput').value.trim();
+      const supaUrl = document.getElementById('supaUrlInput').value.trim();
+      const supaKey = document.getElementById('supaKeyInput').value.trim();
+      const prevCfg = JSON.parse(localStorage.getItem(SUPA_CONFIG_KEY) || 'null');
+      const cfgChanged = (!prevCfg || prevCfg.url !== supaUrl || prevCfg.anonKey !== supaKey);
+
+      if (supaUrl && supaKey) {
+        localStorage.setItem(SUPA_CONFIG_KEY, JSON.stringify({ url: supaUrl, anonKey: supaKey }));
+        if (cfgChanged) {
+          initSupabaseFromStorage();
+          pushNotification('Supabase configured. Sign out and sign back in to enable cloud sync.');
+        }
+      } else if (prevCfg) {
+        localStorage.removeItem(SUPA_CONFIG_KEY);
+        supaClient = null;
+        pushNotification('Supabase disconnected. Switched to local-only mode.');
+      }
+
+      persistWorkspaceState();
+      updateSupaStatusPill();
+      closeModal('settingsModal');
+      pushNotification('Workspace settings saved.');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    // ---------------------------------------------------------
+    // LIVE WEB RESEARCH & URL READER (BLOCKS WIKIS / REDDIT)
+    // ---------------------------------------------------------
+    function extractUrls(text) {
+      const matches = text.match(/https?:\/\/[^\s<>"{}|\\^`[\]]+/gi);
+      return matches || [];
+    }
+
+    function isBlockedDomain(urlStr) {
+      try {
+        const hostname = new URL(urlStr).hostname.toLowerCase();
+        return BLOCKED_DOMAINS.some(domain => hostname === domain || hostname.endsWith('.' + domain));
+      } catch {
+        return true;
+      }
+    }
+
+    async function fetchLiveWebsiteContent(url) {
+      if (isBlockedDomain(url)) {
+        return { blocked: true, url, content: '' };
+      }
+      try {
+        const res = await fetch(`https://r.jina.ai/${url}`, {
+          headers: { 'Accept': 'text/plain' }
+        });
+        if (!res.ok) throw new Error('Reader unavailable');
+        const rawText = await res.text();
+        return {
+          blocked: false,
+          url,
+          domain: new URL(url).hostname,
+          content: rawText.slice(0, 7000)
+        };
+      } catch {
+        return { blocked: false, error: true, url, content: '' };
+      }
+    }
+
+    async function runCredibleWebSearch(query) {
+      const cleanQuery = query.replace(/https?:\/\/\S+/g, '').trim();
+      if (!cleanQuery) return { context: '', sources: [] };
+      try {
+        const res = await fetch(`https://s.jina.ai/${encodeURIComponent(cleanQuery)}`, {
+          headers: { 'Accept': 'text/plain' }
+        });
+        if (!res.ok) return { context: '', sources: [] };
+        const raw = await res.text();
+        const urlMatches = [...new Set(raw.match(/https?:\/\/[^\s)>"']+/g) || [])];
+        const validSources = [];
+        for (const u of urlMatches) {
+          if (!isBlockedDomain(u) && !u.includes('jina.ai')) {
+            try {
+              const host = new URL(u).hostname.replace(/^www\./, '');
+              if (!validSources.some(s => s.domain === host)) {
+                validSources.push({ url: u, domain: host, title: host });
+              }
+            } catch {}
+          }
+          if (validSources.length >= 4) break;
+        }
+        return {
+          context: raw.slice(0, 5500),
+          sources: validSources
+        };
+      } catch {
+        return { context: '', sources: [] };
+      }
+    }
+
+    function silentlyLearnFromInteraction(userMessage) {
+      if (!userState || !userMessage || userMessage.length < 12) return;
+      const cleanNote = userMessage.replace(/\s+/g, ' ').trim().slice(0, 140);
+      const stamp = new Date().toLocaleDateString();
+      userState.backgroundMemory.unshift(`[${stamp}] User topic/preference: ${cleanNote}`);
+      userState.backgroundMemory = userState.backgroundMemory.slice(0, 25);
+      persistWorkspaceState();
+    }
+
+    // ---------------------------------------------------------
+    // CHAT ENGINE, STREAMING & MULTI-TURN EXECUTION
+    // ---------------------------------------------------------
+    function cycleRouterMode() {
+      routerModeIndex = (routerModeIndex + 1) % routerModes.length;
+      document.getElementById('routerModeLabel').textContent = routerModes[routerModeIndex];
+    }
+
+    function toggleWebResearch() {
+      webResearchEnabled = !webResearchEnabled;
+      const btn = document.getElementById('webResearchToggleBtn');
+      const label = document.getElementById('webResearchLabel');
+      if (webResearchEnabled) {
+        btn.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition cursor-pointer';
+        label.textContent = 'Web Research: ON';
+      } else {
+        btn.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-200 transition cursor-pointer';
+        label.textContent = 'Web Research: OFF';
+      }
+    }
+
+    function stopStreaming() {
+      streamAbortFlag = true;
+    }
+
+    // ---------------------------------------------------------
+    // FILE ATTACHMENT (Supabase Storage)
+    // ---------------------------------------------------------
+    async function handleFileAttach(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      if (!supaClient || !currentUser?.isCloud || !currentUser.supaUser) {
+        pushNotification('File uploads need Supabase cloud sync. Configure it in Settings.');
+        event.target.value = '';
+        return;
+      }
+
+      if (file.size > 25 * 1024 * 1024) {
+        pushNotification('File too large (25 MB max).');
+        event.target.value = '';
+        return;
+      }
+
+      pushNotification(`Uploading ${file.name}...`);
+      try {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `${currentUser.supaUser.id}/${Date.now()}_${safeName}`;
+        const { error: upErr } = await supaClient.storage
+          .from('attachments')
+          .upload(path, file, { cacheControl: '3600', upsert: false });
+        if (upErr) throw upErr;
+
+        const { data: signed, error: signErr } = await supaClient.storage
+          .from('attachments')
+          .createSignedUrl(path, 60 * 60 * 24 * 7); // 7-day link
+        if (signErr) throw signErr;
+
+        pendingAttachment = { name: file.name, url: signed.signedUrl, path };
+        document.getElementById('attachedFileName').textContent = file.name;
+        const chip = document.getElementById('attachedFileChip');
+        chip.classList.remove('hidden');
+        chip.classList.add('inline-flex');
+        pushNotification(`${file.name} ready. Hit Send to include it.`);
+      } catch (err) {
+        pushNotification('Upload failed: ' + err.message);
+      }
+      event.target.value = '';
+    }
+
+    function clearAttachedFile() {
+      pendingAttachment = null;
+      const chip = document.getElementById('attachedFileChip');
+      chip.classList.add('hidden');
+      chip.classList.remove('inline-flex');
+    }
+
+    function handlePromptInput(el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 176) + 'px';
+      const urls = extractUrls(el.value);
+      const tag = document.getElementById('urlDetectedTag');
+      if (urls.length) {
+        tag.classList.remove('hidden');
+      } else {
+        tag.classList.add('hidden');
+      }
+    }
+
+    function handlePromptKeydown(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    }
+
+    function quickPrompt(text) {
+      const input = document.getElementById('promptInput');
+      input.value = text;
+      handlePromptInput(input);
+      sendMessage();
+    }
+
+    function startNewChat(keepProject = false) {
+      activeChatId = null;
+      if (!keepProject) {
+        activeProjectId = null;
+        updateProjectBadge();
+        renderProjects();
+      }
+      document.getElementById('currentChatTitle').textContent = 'New Conversation';
+      const container = document.getElementById('messagesContainer');
+      container.innerHTML = '';
+      container.appendChild(createEmptyHeroElement());
+      renderChatHistory();
+      toggleMobileSidebar(false);
+    }
+
+    function createEmptyHeroElement() {
+      const div = document.createElement('div');
+      div.id = 'emptyChatHero';
+      div.className = 'max-w-2xl mx-auto pt-8 sm:pt-14 text-center space-y-6';
+      div.innerHTML = `
+        <div class="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-blue-600/25">
+          ${getTrinityEmblemSvg('w-8 h-8')}
+        </div>
+        <div class="space-y-2">
+          <h1 class="text-2xl sm:text-3xl font-bold text-slate-900">How can I help today?</h1>
+          <p class="text-sm text-slate-500 max-w-md mx-auto">Run live multi-source web research, stream answers in real time, or connect Trinity to 64+ AI and Google Workspace apps.</p>
+        </div>
+      `;
+      return div;
+    }
+
+    function loadChat(chatId) {
+      const chat = userState.chats.find(c => c.id === chatId);
+      if (!chat) return;
+      activeChatId = chat.id;
+      activeProjectId = chat.projectId || null;
+      updateProjectBadge();
+      document.getElementById('currentChatTitle').textContent = chat.title;
+
+      const container = document.getElementById('messagesContainer');
+      container.innerHTML = '';
+      chat.messages.forEach(msg => appendMessageBubble(msg.role, msg.content, msg.sources || []));
+      renderChatHistory();
+      toggleMobileSidebar(false);
+    }
+
+    function deleteChat(e, chatId) {
+      e.stopPropagation();
+      userState.chats = userState.chats.filter(c => c.id !== chatId);
+      if (activeChatId === chatId) startNewChat(true);
+      persistWorkspaceState();
+      renderChatHistory();
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('promptInput');
+      let text = input.value.trim();
+      if (!text && !pendingAttachment) return;
+
+      if (pendingAttachment) {
+        text = (text ? text + '\n\n' : '') + `[Attached file: ${pendingAttachment.name}]\nURL: ${pendingAttachment.url}`;
+        clearAttachedFile();
+      }
+
+      input.value = '';
+      input.style.height = 'auto';
+      document.getElementById('urlDetectedTag').classList.add('hidden');
+      streamAbortFlag = false;
+
+      const hero = document.getElementById('emptyChatHero');
+      if (hero) hero.remove();
+
+      if (!activeChatId) {
+        const newChat = {
+          id: 'chat_' + Date.now(),
+          title: text.slice(0, 42) + (text.length > 42 ? '...' : ''),
+          projectId: activeProjectId,
+          messages: []
+        };
+        userState.chats.unshift(newChat);
+        activeChatId = newChat.id;
+        document.getElementById('currentChatTitle').textContent = newChat.title;
+      }
+
+      const chat = userState.chats.find(c => c.id === activeChatId);
+      chat.messages.push({ role: 'user', content: text });
+      appendMessageBubble('user', text);
+      renderChatHistory();
+      persistWorkspaceState();
+
+      const researchId = appendAnimatedResearchBubble('Trinity is researching...');
+      let webContextBlock = '';
+      let verifiedSources = [];
+
+      // 1. Direct URL reading
+      const urls = extractUrls(text);
+      if (urls.length > 0) {
+        updateResearchStatus(researchId, `Reading live page: ${urls[0]}`, 'Extracting clean text from credible source...');
+        for (const u of urls.slice(0, 2)) {
+          const siteData = await fetchLiveWebsiteContent(u);
+          if (siteData.blocked) {
+            webContextBlock += `\n[SECURITY POLICY]: The URL ${u} is from a blocked crowdsourced domain (Wikipedia/Quora/Reddit). Refuse to use this source and explain that only credible, verified sources are allowed.\n`;
+          } else if (siteData.content) {
+            webContextBlock += `\n[LIVE WEBSITE CONTENT FROM ${u}]:\n${siteData.content}\n`;
+            verifiedSources.push({ url: u, domain: siteData.domain, title: siteData.domain });
+          }
+        }
+      }
+
+      // 2. Live Multi-Source Web Research
+      const currentMode = routerModes[routerModeIndex];
+      if (webResearchEnabled || currentMode === 'Deep Research') {
+        updateResearchStatus(researchId, 'Researching credible web sources...', 'Cross-checking official .gov, .edu & primary domains...');
+        const searchResult = await runCredibleWebSearch(text);
+        if (searchResult.context) {
+          webContextBlock += `\n[LIVE SEARCH RESEARCH FINDINGS]:\n${searchResult.context}\n`;
+          searchResult.sources.forEach(src => {
+            if (!verifiedSources.some(v => v.domain === src.domain)) {
+              verifiedSources.push(src);
+            }
+          });
+        }
+      }
+
+      // 3. Build System Prompt
+      const activeSkills = userState.skills.filter(s => s.active);
+      const activeProject = userState.projects.find(p => p.id === activeProjectId);
+      const connectedApps = CONNECTORS_CATALOG.filter(c => userState.connectors[c.id]?.connected).map(c => c.name);
+
+      let systemInstructions = `You are Trinity AI, a direct, highly capable AI research & coding assistant with a clean, Claude-like communication style.
+- Answer immediately without filler intros or repeating the user's question.
+- Strictly NEVER use or cite Wikipedia, Quora, Reddit, or unverified crowdsourced wikis. Rely only on credible primary sources, official documentation, .gov/.edu sources, or the live research context below.
+- Current Mode: ${currentMode}. ${currentMode.includes('Freebuff') ? 'Provide a concise 2-bullet architectural plan followed by complete, self-contained, runnable code.' : ''}`;
+
+      if (connectedApps.length) {
+        systemInstructions += `\n\n[CONNECTED APPS & GOOGLE ECOSYSTEM]: ${connectedApps.join(', ')}. Format outputs cleanly for these tools when relevant (e.g., structured outlines for Google Docs, slide-by-slide decks for Google Slides, tables for Google Sheets).`;
+      }
+      if (activeProject && activeProject.context) {
+        systemInstructions += `\n\n[ACTIVE PROJECT: ${activeProject.title}]\n${activeProject.context}`;
+      }
+      if (activeSkills.length) {
+        systemInstructions += `\n\n[ACTIVE TRAINED SKILLS — FOLLOW STRICTLY]:\n` +
+          activeSkills.map(s => `- ${s.name}: ${s.instructions}`).join('\n');
+      }
+      if (userState.backgroundMemory.length) {
+        systemInstructions += `\n\n[LEARNED USER CONTEXT]:\n` +
+          userState.backgroundMemory.slice(0, 6).join('\n');
+      }
+      if (webContextBlock) {
+        systemInstructions += `\n\n${webContextBlock}`;
+      }
+
+      updateResearchStatus(researchId, 'Synthesizing verified response...', 'Streaming output...');
+      const reply = await fetchTrinityAIResponse(systemInstructions, chat.messages);
+      removeResearchBubble(researchId);
+
+      // Show Stop button while streaming text
+      const stopBtn = document.getElementById('stopStreamBtn');
+      const sendBtn = document.getElementById('sendBtn');
+      stopBtn.classList.remove('hidden');
+      sendBtn.disabled = true;
+
+      const finalStreamedText = await streamAssistantMessage(reply, verifiedSources);
+
+      stopBtn.classList.add('hidden');
+      sendBtn.disabled = false;
+
+      chat.messages.push({ role: 'assistant', content: finalStreamedText, sources: verifiedSources });
+      silentlyLearnFromInteraction(text);
+      persistWorkspaceState();
+
+      const fence = '`' + '`' + '`';
+      const htmlRegex = new RegExp(fence + 'html\\s*([\\s\\S]*?)' + fence, 'i');
+      const htmlMatch = finalStreamedText.match(htmlRegex);
+      if (htmlMatch && htmlMatch[1]) {
+        latestGeneratedCode = htmlMatch[1].trim();
+        document.getElementById('toggleCanvasBtn').classList.remove('hidden');
+        openCodeSandbox(latestGeneratedCode);
+      }
+    }
+
+    async function fetchTrinityAIResponse(systemPrompt, history) {
+      const apiKey = userState.apiKey;
+
+      if (apiKey) {
+        try {
+          const formattedContents = history.slice(-10).map(m => ({
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.content }]
+          }));
+
+          const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+              contents: formattedContents,
+              tools: [{ google_search: {} }]
+            })
+          });
+
+          if (resp.ok) {
+            const data = await resp.json();
+            const candidateText = data?.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || '';
+            if (candidateText) return candidateText;
+          }
+        } catch (err) {
+          console.warn('Gemini key request fell back to live zero-key endpoint:', err);
+        }
+      }
+
+      const messagesPayload = [
+        { role: 'system', content: systemPrompt },
+        ...history.slice(-8).map(m => ({ role: m.role, content: m.content }))
+      ];
+
+      // Tier 1: Pollinations OpenAI-compatible endpoint
+      try {
+        const res = await fetch('https://text.pollinations.ai/openai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'openai', messages: messagesPayload })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const textOut = data?.choices?.[0]?.message?.content;
+          if (textOut) return textOut;
+        }
+      } catch (err) { console.warn('Pollinations OpenAI endpoint failed:', err); }
+
+      // Tier 2: Pollinations plain-text endpoint
+      try {
+        const lastUserMsg = history[history.length - 1]?.content || '';
+        const promptEncoded = encodeURIComponent(`${systemPrompt}\n\nUser: ${lastUserMsg}`);
+        const fallbackRes = await fetch(`https://text.pollinations.ai/${promptEncoded}`);
+        if (fallbackRes.ok) {
+          const t = await fallbackRes.text();
+          if (t) return t;
+        }
+      } catch {}
+
+      // Tier 3: Pollinations with explicit model variants (mistral/llama)
+      for (const model of ['mistral', 'llama', 'openai-fast']) {
+        try {
+          const res = await fetch('https://text.pollinations.ai/openai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model, messages: messagesPayload })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const textOut = data?.choices?.[0]?.message?.content;
+            if (textOut) return textOut;
+          }
+        } catch {}
+      }
+
+      return 'I could not reach any AI backend right now. The free endpoints may be temporarily down — try again in a minute, or add a Gemini API key in Settings if you have one.';
+    }
+
+    // ---------------------------------------------------------
+    // MESSAGE RENDERING & CODE SANDBOX
+    // ---------------------------------------------------------
+    function getTrinityEmblemSvg(cls = 'w-4 h-4') {
+      return `<svg class="${cls}" viewBox="0 0 32 32" fill="none">
+        <ellipse cx="16" cy="16" rx="11" ry="4.5" transform="rotate(-30 16 16)" stroke="currentColor" stroke-width="2.2"/>
+        <ellipse cx="16" cy="16" rx="11" ry="4.5" transform="rotate(30 16 16)" stroke="currentColor" stroke-width="2.2"/>
+        <ellipse cx="16" cy="16" rx="11" ry="4.5" transform="rotate(90 16 16)" stroke="currentColor" stroke-width="2.2"/>
+        <circle cx="16" cy="16" r="2.6" fill="currentColor"/>
+      </svg>`;
+    }
+
+    function renderSourcePillsHtml(sources) {
+      if (!sources || !sources.length) return '';
+      return `
+        <div class="flex flex-wrap items-center gap-1.5 mb-2">
+          <span class="text-[11px] font-semibold text-blue-700 mr-0.5">Verified Sources:</span>
+          ${sources.map(s => `
+            <a href="${escapeHtml(s.url)}" target="_blank" rel="noopener noreferrer"
+              class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-[11px] font-medium transition">
+              <span>${escapeHtml(s.domain || s.title)}</span>
+              <span>&#8599;</span>
+            </a>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function renderGoogleExportBarHtml(content) {
+      const googleIds = ['gdocs', 'gslides', 'gsheets', 'gmail', 'gdrive', 'gcal', 'youtube', 'gmaps', 'gscholar', 'gkeep', 'gforms', 'gclassroom', 'gmeet', 'gemini'];
+      const anyGoogleConnected = googleIds.some(id => userState?.connectors?.[id]?.connected);
+      if (!anyGoogleConnected) return '';
+      const safePayload = encodeURIComponent(content);
+      return `
+        <div class="pt-2.5 mt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
+          <span class="text-[11px] font-semibold text-slate-400 mr-1">Export to Google:</span>
+          <button onclick="exportToGoogleApp('docs', '${safePayload}')" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-[11px] font-semibold cursor-pointer transition">
+            + Google Docs
+          </button>
+          <button onclick="exportToGoogleApp('slides', '${safePayload}')" class="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-[11px] font-semibold cursor-pointer transition">
+            + Google Slides
+          </button>
+          <button onclick="exportToGoogleApp('sheets', '${safePayload}')" class="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-[11px] font-semibold cursor-pointer transition">
+            + Google Sheets
+          </button>
+          <button onclick="exportToGoogleApp('gmail', '${safePayload}')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-[11px] font-semibold cursor-pointer transition">
+            Draft in Gmail
+          </button>
+        </div>
+      `;
+    }
+
+    function appendMessageBubble(role, content, sources = []) {
+      const container = document.getElementById('messagesContainer');
+      const wrapper = document.createElement('div');
+      wrapper.className = `max-w-3xl mx-auto flex gap-3.5 ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+
+      if (role === 'user') {
+        wrapper.innerHTML = `
+          <div class="max-w-[82%] px-4 py-3 rounded-2xl rounded-tr-xs bg-blue-600 text-white text-sm leading-relaxed shadow-xs whitespace-pre-wrap">${escapeHtml(content)}</div>
+        `;
+      } else {
+        wrapper.innerHTML = `
+          <div class="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+            ${getTrinityEmblemSvg('w-4 h-4')}
+          </div>
+          <div class="flex-1 min-w-0 text-sm text-slate-800 leading-relaxed space-y-2">
+            ${renderSourcePillsHtml(sources)}
+            <div class="prose-content space-y-2">${formatMarkdownSafe(content)}</div>
+            ${renderGoogleExportBarHtml(content)}
+          </div>
+        `;
+      }
+
+      container.appendChild(wrapper);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // Smooth character/chunk streaming just like Claude & Gemini
+    function streamAssistantMessage(fullText, sources = []) {
+      return new Promise(resolve => {
+        const container = document.getElementById('messagesContainer');
+        const wrapper = document.createElement('div');
+        wrapper.className = 'max-w-3xl mx-auto flex gap-3.5 justify-start';
+
+        wrapper.innerHTML = `
+          <div class="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+            ${getTrinityEmblemSvg('w-4 h-4')}
+          </div>
+          <div class="flex-1 min-w-0 text-sm text-slate-800 leading-relaxed space-y-2">
+            ${renderSourcePillsHtml(sources)}
+            <div class="prose-content space-y-2"></div>
+            <div class="google-export-slot"></div>
+          </div>
+        `;
+        container.appendChild(wrapper);
+        const contentEl = wrapper.querySelector('.prose-content');
+        const exportSlot = wrapper.querySelector('.google-export-slot');
+
+        let index = 0;
+        const total = fullText.length;
+        // Adaptive chunk size so short answers feel silky and long code streams briskly
+        const stepSize = total > 1800 ? 12 : total > 600 ? 6 : 3;
+
+        const timer = setInterval(() => {
+          if (streamAbortFlag) {
+            clearInterval(timer);
+            const partial = fullText.slice(0, index);
+            contentEl.innerHTML = formatMarkdownSafe(partial);
+            exportSlot.innerHTML = renderGoogleExportBarHtml(partial);
+            resolve(partial);
+            return;
+          }
+
+          index = Math.min(index + stepSize, total);
+          const slice = fullText.slice(0, index);
+          contentEl.innerHTML = formatMarkdownSafe(slice) + (index < total ? '<span class="streaming-cursor"></span>' : '');
+          container.scrollTop = container.scrollHeight;
+
+          if (index >= total) {
+            clearInterval(timer);
+            contentEl.innerHTML = formatMarkdownSafe(fullText);
+            exportSlot.innerHTML = renderGoogleExportBarHtml(fullText);
+            resolve(fullText);
+          }
+        }, 16);
+      });
+    }
+
+    // Animated 3-Node Orbiting SVG Research Graphic
+    function appendAnimatedResearchBubble(statusTitle) {
+      const id = 'research_' + Date.now();
+      const container = document.getElementById('messagesContainer');
+      const div = document.createElement('div');
+      div.id = id;
+      div.className = 'max-w-3xl mx-auto flex items-center gap-3.5 p-3.5 rounded-2xl bg-blue-50/70 border border-blue-200/80';
+      div.innerHTML = `
+        <div class="w-11 h-11 rounded-xl bg-white border border-blue-200 flex items-center justify-center shrink-0 shadow-2xs">
+          <svg class="w-8 h-8 text-blue-600" viewBox="0 0 48 48" fill="none">
+            <g class="trinity-orbit-cw">
+              <ellipse cx="24" cy="24" rx="18" ry="7" stroke="#2563eb" stroke-width="2" stroke-opacity="0.85"/>
+              <circle cx="42" cy="24" r="2.8" fill="#2563eb"/>
+            </g>
+            <g class="trinity-orbit-ccw">
+              <ellipse cx="24" cy="24" rx="18" ry="7" transform="rotate(60 24 24)" stroke="#0284c7" stroke-width="2" stroke-opacity="0.75"/>
+              <circle cx="15" cy="8.4" r="2.6" fill="#0284c7"/>
+            </g>
+            <ellipse cx="24" cy="24" rx="18" ry="7" transform="rotate(120 24 24)" stroke="#93c5fd" stroke-width="1.6"/>
+            <circle class="trinity-core-pulse" cx="24" cy="24" r="4" fill="#2563eb"/>
+          </svg>
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="research-title text-xs font-bold text-blue-800 truncate">${escapeHtml(statusTitle)}</div>
+          <div class="research-sub text-[11px] text-blue-600/80 truncate mt-0.5">Scanning credible sources &amp; filtering out wikis...</div>
+        </div>
+      `;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      return id;
+    }
+
+    function updateResearchStatus(id, title, sub) {
+      const box = document.getElementById(id);
+      if (!box) return;
+      const t = box.querySelector('.research-title');
+      const s = box.querySelector('.research-sub');
+      if (t && title) t.textContent = title;
+      if (s && sub) s.textContent = sub;
+    }
+
+    function removeResearchBubble(id) {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    }
+
+    function openCodeSandbox(code) {
+      const panel = document.getElementById('codeCanvasPanel');
+      const frame = document.getElementById('sandboxFrame');
+      panel.classList.remove('hidden');
+      frame.srcdoc = code;
+    }
+
+    function toggleCodePreview(forceState) {
+      const panel = document.getElementById('codeCanvasPanel');
+      if (typeof forceState === 'boolean') {
+        panel.classList.toggle('hidden', !forceState);
+      } else {
+        panel.classList.toggle('hidden');
+      }
+    }
+
+    function copyCanvasCode() {
+      if (!latestGeneratedCode) return;
+      const temp = document.createElement('textarea');
+      temp.value = latestGeneratedCode;
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand('copy');
+      document.body.removeChild(temp);
+      pushNotification('Code copied to clipboard.');
+    }
+
+    function formatMarkdownSafe(text) {
+      let escaped = escapeHtml(text);
+      const fence = '`' + '`' + '`';
+      const codeBlockRegex = new RegExp(fence + '(\\w*)\\n([\\s\\S]*?)' + fence, 'g');
+      escaped = escaped.replace(codeBlockRegex, (_, lang, code) => {
+        return `<pre class="p-3.5 rounded-xl bg-slate-900 text-slate-100 text-xs overflow-x-auto my-2"><code>${code}</code></pre>`;
+      });
+      escaped = escaped.replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-slate-100 text-blue-700 text-xs">$1</code>');
+      escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-semibold text-slate-900">$1</strong>');
+      return escaped.replace(/\n/g, '<br>');
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>
